@@ -25,4 +25,5 @@ class Extraction(customtkinter.CTk):
 
         
     def button_callback(self):
-        rc = call("bash/extract.sh")
+        rc = call("extract/extract.sh")
+
