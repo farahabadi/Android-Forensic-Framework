@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="alert alert-info mt-4 d-flex align-items-center" role="alert">
+    <i class="bi bi-wifi me-2"></i>
+    <div>
+        PCAP file: <strong>{{ filename }}</strong><br>
+        <span class="text-muted">To analyze this capture, open it directly in Wireshark.</span>
+    </div>
+</div>
+<a href="file://{{ full_path }}" class="btn btn-primary" style="pointer-events: none;" title="This action only works on local file systems.">
+    <i class="bi bi-box-arrow-up-right"></i> Open in Wireshark
+</a>
+<p class="mt-3">
+    <a class="btn btn-secondary" href="{% url 'browse_project' project_name=project subpath=parent_subpath %}">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</p>
+{% endblock %}

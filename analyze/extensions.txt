@@ -11,4 +11,4 @@ slide:ppt odp zzz
 text:doc docx ebook log md msg odt org pages pdf rtf rst tex txt wpd wps json zzz
 video:3g2 3gp aaf asf avchd avi drc flv m2v m4p m4v mkv mng mov mp2 mp4 mpe mpeg mpg mpv mxf nsv ogg ogv ogm qt rm rmvb roq srt svi vob webm wmv yuv zzz
 web:html htm css js jsx less scss wasm php zzz
-db:sql db sqlite mdb accdb csv bak zzz
+db:sql db db-wal db-shm sqlite mdb accdb csv bak zzz

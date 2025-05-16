@@ -1,17 +1,11 @@
 #!/bin/bash
 
-if [ -z $1 ]
-then
-    echo no input
-    exit 1
-fi
-
 address=$1
+whole=$2
+app_name=$3
 
 
-echo extract address is: $address
 echo starting to dump...
-sleep 2
 
 
 adb_state=$(adb get-state 2>/dev/null)
@@ -24,56 +18,54 @@ fi
 b=$(adb shell command -v su)
 echo b: $b
 
+adb shell rmdir /sdcard/data_tmp
 adb shell mkdir /sdcard/data_tmp
 
 if [ -z $b ]
 then
-    echo su not found
-    echo dumping in non root mode
-    sleep 3
-    mkdir -p $address/non-root
-    adb pull /sdcard $address/non-root
-    list=$(adb shell ls /)
-    for i in $list
-    do
-        if [ $i == "sys" ] || [ $i == "config" ] || [ $i == "proc" ]; then
-            continue
+    echo su not found, dumping in non root mode
+    mkdir -p $address/extract/media
+    adb pull -a /sdcard $address/extract/media
+    list=$(adb shell pm list packages)
+    for package in $list; do
+        if [ $app_name != "" ]
+        then
+        if [ $app_name == $package ]
+        then
+            echo app found!
         fi
-        adb shell cp -ra $i /sdcard/data_tmp 2>/dev/null
-        adb pull /sdcard/data_tmp/$i $address/non-root
-        adb shell rm -rf /sdcard/data_tmp/$i
+        fi
     done
+
 else
     echo su found
     echo dumping in root mode
-    sleep 3
-    mkdir -p $address/root
-	list=$(adb shell su -c ls /)
-    for i in $list
-    do
-        if [ $i == "sys" ] || [ $i == "config" ] || [ $i == "proc" ] || [ $i == "dev" ]; then
-            continue
+    mkdir -p $address/extract/apps_data $address/extract/media $address/extract/other
+    ok=false
+    list=$(adb shell pm list packages | cut -d  ':' -f 2)
+    for package in $list; do
+        if [ $app_name == $package ]
+        then
+            echo app found!
+            ok=true
         fi
-        echo coping $i...
-        if [ $i == "data" ]; then
-            list=$(adb shell su -c ls /data)
-            for j in $list
-            do
-                if [ $j == "media" ]; then
-                    continue
-                fi
-            adb shell mkdir -p /sdcard/data_tmp/data
-            adb shell su -c cp -ra /data/$j /sdcard/data_tmp/data 2>/dev/null
-            adb pull -a /sdcard/data_tmp/data $address/root
-            adb shell rm -rf /sdcard/data_tmp/data
-            done
-            continue
-        fi
-        adb shell su -c cp -ra $i /sdcard/data_tmp 2>/dev/null
-        adb pull -a /sdcard/data_tmp/$i $address/root
-        adb shell rm -rf /sdcard/data_tmp/$i
-    done	
+    done
+
+    if [ $ok == "false" ]
+    then
+      echo app not found !!
+      exit 1
+    fi
+
+    adb shell su -c cp -pr /data/data/$app_name /sdcard/data_tmp
+    adb pull -a /sdcard/data_tmp/$app_name $address/extract/apps_data
+    adb shell rmdir /sdcard/data_tmp/$app_name
+
+    adb shell su -c cp -rp /data/system /sdcard/data_tmp
+    adb pull -a /sdcard/data_tmp/system $address/extract/other
+    adb shell rmdir /sdcard/data_tmp
+
+    adb pull -a /sdcard $address/extract/media
 fi
-adb shell rmdir /sdcard/data_tmp
 
         

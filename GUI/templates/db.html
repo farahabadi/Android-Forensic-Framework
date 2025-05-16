@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card mt-4">
+    <div class="card-header bg-success text-white">
+        <i class="bi bi-database"></i> {{ filename }}
+    </div>
+    <div class="card-body">
+        {% if tables %}
+            <ul class="nav nav-tabs mb-3" id="dbTab" role="tablist">
+                {% for table in tables %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if forloop.first %}active{% endif %}" id="tab-{{ table.name }}" data-bs-toggle="tab" data-bs-target="#table-{{ table.name }}" type="button" role="tab">{{ table.name }}</button>
+                </li>
+                {% endfor %}
+            </ul>
+            <div class="tab-content">
+                {% for table in tables %}
+                <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" id="table-{{ table.name }}" role="tabpanel">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped table-sm">
+                            <thead>
+                                <tr>
+                                    {% for col in table.columns %}
+                                    <th>{{ col }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in table.rows %}
+                                <tr>
+                                    {% for cell in row %}
+                                    <td>{{ cell }}</td>
+                                    {% endfor %}
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="{{ table.columns|length }}" class="text-muted text-center">No data</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-warning">No tables found in this database.</div>
+        {% endif %}
+    </div>
+    <div class="card-footer">
+        <a class="btn btn-secondary" href="{% url 'browse_project' project_name=project subpath=parent_subpath %}">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
+</div>
+{% endblock %}

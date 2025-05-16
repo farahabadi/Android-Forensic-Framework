@@ -2,12 +2,78 @@ import os, sys
 from subprocess import call
 import shutil
 import cv2
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'image')))
-import utils
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',)))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'util')))
+from addresses import get_address
+from util import image_utils
+from .app_process import process_app_data
+from .network_process import start
 
 ext_list=["archive", "app", "audio", "book", "code", "exec", "font", "image", "sheet", "slide", "text", "video", "web", "db", "others"]
 ext=dict()
+known_apps=[]
 
+
+def start_process(address, out, whole, app_name):
+    
+    # organise by extension
+    create_extensions()
+    extension_org(address, out)
+
+    #face analysis
+    img_address = get_address("project_process_extension_image")
+    save_address = get_address("project_process_face")
+    # process_images(img_address, save_address)
+
+    # app data analysis
+    app_address = get_address("project_extract_app")
+    app_address = app_address + "/" + app_name
+    media_address = get_address("project_extract_media")
+    if (whole):
+        process_app_data1(app_name, app_address)
+        # process_app_media(app_name, media_address)
+    # else:
+        # process_app_media(app_name, media_address)
+
+    pcap_address = get_address("project_extract_network")
+    network_output_dir = get_address("project_process_network")
+    if (whole):
+        print("analyze network data")
+        # process_network_data(pcap_address, network_output_dir)
+
+
+
+
+
+def process_images(img_address, save_address):
+    face_analyze(img_address, save_address)
+
+def process_app_data1(app_name, app_address):
+    if app_name in known_apps:
+        #TODO
+        print("TODO")
+    else:
+        print("special app search not implemented for app: ", app_name)
+        process_app_data(app_name, app_address)
+        
+
+def process_app_media(app_name, media_address):
+    if app_name in known_apps:
+        #TODO
+        print("TODO")
+    else:
+        print("special media search not implemented for app: ", app_name)
+
+
+
+def process_network_data(pcap_address, out_dir):
+    start(pcap_address, out_dir)
+
+
+
+
+
+###################################################################################
 def create_extensions():
     with open("analyze/extensions.txt") as file:
         for line in file:
@@ -25,14 +91,6 @@ def copy_file(src, dest):
         print(f"Error copying file: {e}")
 
 
-def start(address, out, img_address, face_address):
-    # organise by extension
-    create_extensions()
-    extension_org(address, out)
-
-    #face analysis
-    # face_analyze(img_address, face_address)
-
 def extension_org(address,out):
     for item in ext_list:
         dir = os.path.join(out, "extension", item)
@@ -45,7 +103,7 @@ def extension_org(address,out):
             full_name=os.path.join(root, file)
             _, file_extension = os.path.splitext(full_name)
             file_type = ext.get(file_extension[1:])
-            with open("out/analyze/extension/ts.txt", "a") as ts:
+            with open("{output}/extension/ts.txt".format(output=out), "a") as ts:
                 if (file_type is not None):
                     dest=os.path.join(out, "extension", file_type, full_name.replace('/', '_'))
                     copy_file(full_name, dest)
@@ -58,20 +116,16 @@ def extension_org(address,out):
 
 
 def face_analyze(img_address, face_address):
-    face_extract(img_address, face_address)
+    image_utils.start_face_process(img_address, face_address)
 
 
-def face_extract(img_address, face_address):
-    for _, _, files in os.walk(img_address):
-        utils.crop_face_and_save(img_address, face_address, limit_size=5000)
-        for file in files:
-            full_name = os.path.join(img_address, file)
 
+    
 
-address = "out/data_tmp"
-out="out/analyze"
-img_address = "out/analyze/extension/image"
-face_address = "out/analyze/faces"
+# address = "out/data_tmp"
+# out="out/analyze"
+# img_address = "out/analyze/extension/image"
+# face_address = "out/analyze/faces"
 
 # j=0
 # img = cv2.imread("/home/alireza/university/master/final-project/code/Android-Forensic-Framework/out/analyze/extension/image/out_data_tmp_sdcard_Android_data_ir.eitaa.messenger_cache_1_101052.jpg")
@@ -88,4 +142,4 @@ face_address = "out/analyze/faces"
 #     crop_img = img[y:y+h, x:x+w]
 #     name = "face-{j}-{im}.jpg".format(j=j, im="img")
 #     cv2.imwrite(name, crop_img)
-start(address, out, img_address, face_address)
+# start(address, out, img_address, face_address)

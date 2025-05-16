@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb mt-3">
+        <li class="breadcrumb-item"><a href="{% url 'browse_project' project_name=project %}">{{ project }}</a></li>
+        {% for part in breadcrumbs %}
+            {% if part.1 %}
+                <li class="breadcrumb-item"><a href="{% url 'browse_project' project_name=project subpath=part.1 %}">{{ part.0 }}</a></li>
+            {% else %}
+                <li class="breadcrumb-item active" aria-current="page">{{ part.0 }}</li>
+            {% endif %}
+        {% endfor %}
+    </ol>
+</nav>
+
+<h3 class="mb-4">{{ path|join:"/" }}</h3>
+
+<div class="row row-cols-1 row-cols-md-3 g-4">
+    {% for item in items %}
+    <div class="col">
+        <div class="card file-card h-100">
+            {% if item.is_image %}
+                <a href="{% url 'browse_project' project_name=project subpath=item.url %}" data-bs-toggle="modal" data-bs-target="#imgModal{{ forloop.counter }}">
+                    <img src="{{ item.file_url }}" class="card-img-top file-thumb" alt="{{ item.name }}">
+                </a>
+                <!-- Modal for fullscreen image -->
+                <div class="modal fade" id="imgModal{{ forloop.counter }}" tabindex="-1">
+                  <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content">
+                      <img src="{{ item.file_url }}" class="w-100 rounded">
+                    </div>
+                  </div>
+                </div>
+            {% endif %}
+            <div class="card-body">
+                <div class="card-title">
+                    {% if item.is_dir %}
+                        <i class="bi bi-folder text-warning"></i>
+                    {% else %}
+                        <i class="bi bi-file-earmark"></i>
+                    {% endif %}
+                    {{ item.name }}
+                </div>
+                {% if item.is_text %}
+                  <a class="btn btn-sm btn-outline-primary mt-1" href="{% url 'browse_project' project_name=project subpath=item.url %}">Full Text</a>
+                {% endif %}
+            </div>
+            <div class="card-footer">
+                {% if item.is_pcap %}
+                    <a href="{% url 'browse_project' project_name=project subpath=item.url %}" class="btn btn-sm btn-danger"><i class="bi bi-wifi"></i> Open in Wireshark</a>
+                {% elif item.is_db %}
+                    <a href="{% url 'browse_project' project_name=project subpath=item.url %}" class="btn btn-sm btn-success"><i class="bi bi-database"></i> DB Browser</a>
+                {% elif not item.is_dir and not item.is_text and not item.is_image %}
+                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'browse_project' project_name=project subpath=item.url %}" download>Download</a>
+                {% elif item.is_dir %}
+                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'browse_project' project_name=project subpath=item.url %}">Open</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
