@@ -11,32 +11,6 @@ import time
 import os
 import keyboard
 
-# backends = [
-#   # 'fast mtcnn',
-#   'yolov8',
-# ]
-
-# models = [
-#   # "VGG-Face",
-#   "Facenet",
-#   "Facenet512", 
-#   # "OpenFace", 
-#   # "DeepFace", 
-#   # "DeepID", 
-#   # "ArcFace", 
-#   # "SFace",
-#   # "GhostFaceNet",
-# ]
-
-# img = image_utils.open_image("/home/alireza/university/master/final-project/code/datasets/1/test2.jpg")
-
-# for i in range(len(models)):
-#     for j in range(len(backends)):
-#       print("model: ", models[i], "    backend: ", backends[j])
-#       similars = utils.find_faces(face=img, db="/home/alireza/university/master/final-project/code/datasets/1/res", model=models[i], backend=backends[j])
-#       for k in similars:
-#          for l in k['identity']:
-#             print(l)
 
 
 
@@ -49,7 +23,7 @@ def start_project(name, whole, app_name):
   extracted_address = get_address("project_extract")
   
   # extract data
-  # evidence_database.extract_and_save(whole, app_name)
+  evidence_database.extract_and_save(whole, app_name)
 
   # process data
   process.start_process(extracted_address, process_address, whole, app_name)

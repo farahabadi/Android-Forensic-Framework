@@ -23,23 +23,21 @@ def start_process(address, out, whole, app_name):
     #face analysis
     img_address = get_address("project_process_extension_image")
     save_address = get_address("project_process_face")
-    # process_images(img_address, save_address)
+    process_images(img_address, save_address)
 
     # app data analysis
     app_address = get_address("project_extract_app")
     app_address = app_address + "/" + app_name
-    media_address = get_address("project_extract_media")
+    # media_address = get_address("project_extract_media")
     if (whole):
         process_app_data1(app_name, app_address)
-        # process_app_media(app_name, media_address)
-    # else:
-        # process_app_media(app_name, media_address)
+
 
     pcap_address = get_address("project_extract_network")
     network_output_dir = get_address("project_process_network")
     if (whole):
         print("analyze network data")
-        # process_network_data(pcap_address, network_output_dir)
+        process_network_data(pcap_address, network_output_dir)
 
 
 

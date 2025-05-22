@@ -2,13 +2,14 @@
 from django.shortcuts import render, redirect
 from django.conf import settings
 from django.http import FileResponse, Http404,  HttpResponseBadRequest
-from forensics.forms import ProjectForm, ApplicationForm
+from forensics.forms import ProjectForm, ApplicationForm, ProjectSelectForm
 import mimetypes
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..',)))
 import main
 from .logic import parse_sqlite, parse_pcap
+import subprocess
 
 def create_project(request):
     """Create a new project."""
@@ -25,30 +26,75 @@ def create_project(request):
     else:
         form = ProjectForm()
     return render(request, 'create_project.html', {'form': form})
+##############################################################################################################
 
+
+PROJECT_ROOT_DIR = "projects"
+def list_projects():
+    """Return a list of project names (as folder names)."""
+    try:
+        projects = [
+            name for name in os.listdir(PROJECT_ROOT_DIR)
+            if os.path.isdir(os.path.join(PROJECT_ROOT_DIR, name))
+        ]
+        return [(name, name) for name in sorted(projects)]
+    except Exception:
+        return []
+
+def select_project(request):
+    """View for selecting a project to browse."""
+    project_choices = list_projects()
+
+    if request.method == 'POST':
+        form = ProjectSelectForm(request.POST, project_choices=project_choices)
+        if form.is_valid():
+            project_name = form.cleaned_data['project_name']
+            return redirect(f"/project/{project_name}/browse")
+    else:
+        form = ProjectSelectForm(project_choices=project_choices)
+
+    return render(request, 'select_project.html', {'form': form})
+
+##############################################################################################################
 
 def project_detail(request, project_name):
     """Show details for a specific project."""
     project_data = evidence_database.get_project_data(project_name)
     return render(request, 'project_detail.html', {'project_name': project_name, 'project_desc': project_data})
 
+##############################################################################################################3
+
+def get_package_names():
+    """Returns a list of installed package names from the connected device."""
+    try:
+        output = subprocess.check_output(
+            ["adb", "shell", "pm", "list", "packages"], text=True
+        )
+        packages = [line.strip().split(":")[1] for line in output.strip().splitlines()]
+        return [(pkg, pkg) for pkg in packages]  # Django expects (value, label)
+    except subprocess.CalledProcessError:
+        return []
 
 def add_application(request, project_name):
     """Add an application to the project."""
+    package_choices = get_package_names()
+
     if request.method == 'POST':
-        form = ApplicationForm(request.POST)
+        form = ApplicationForm(request.POST, package_choices=package_choices)
         if form.is_valid():
             package_name = form.cleaned_data['package_name']
             is_rooted = form.cleaned_data['is_rooted']
 
-            # Run extraction and processing here
-            main.start_project(project_name, is_rooted, package_name)
+            res = main.start_project(project_name, is_rooted, package_name)
 
-            # return redirect('project_detail', project_name=project_name)
-            return redirect("http://127.0.0.1:8000/project/{aa}/browse")
+            return redirect(f"http://127.0.0.1:8000/project/{project_name}/browse")
     else:
-        form = ApplicationForm()
-    return render(request, 'add_application.html', {'form': form, 'project_name': project_name})
+        form = ApplicationForm(package_choices=package_choices)
+
+    return render(request, 'add_application.html', {
+        'form': form,
+        'project_name': project_name
+    })
 
 
 #############################################################################################################################################

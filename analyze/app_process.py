@@ -5,6 +5,9 @@ import json
 import xml.etree.ElementTree as ET
 import logging
 from pathlib import Path
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',)))
+import addresses
 
 # Configure logging to capture output
 logging.basicConfig(filename="sensitive_data_log.log", level=logging.INFO)
@@ -105,13 +108,14 @@ def extract_from_cache(file_path):
         logging.error(f"Error reading cache from {file_path}: {e}")
     return found_data
 
-def log_results(found_data, file_path):
+def log_results(found_data, file_path, app_name):
     """
     Log sensitive data findings to a file or report.
     """
     if any(found_data.values()):
         print(f"Found sensitive data in: {file_path}")
-        with open("projects/new1/processed_data/apps/telegram/res.txt", 'w+') as of:
+        file = "projects/{proj_name}/processed_data/apps/{name}/res.txt".format(proj_name=addresses.global_project_name, name=app_name)
+        with open(file, 'w+') as of:
             for key, data in found_data.items():
                 if data:
                     of.write("path: {path} key: {key} data: {data}\n".format(path=file_path, key=key, data=data))
@@ -122,6 +126,9 @@ def process_app_data(app_name, app_address):
     """
     print("start process app data")
     print("app name : ", app_name, "app address: ", app_address)
+    app_dir = "projects/{proj_name}/processed_data/apps/{app_name}".format(proj_name=addresses.global_project_name, app_name=app_name)
+    if not os.path.exists(app_dir):
+        os.makedirs(app_dir)
     logging.info(f"Processing app data for: {app_name} at {app_address}")
     
     files = search_files(app_address)
@@ -135,33 +142,22 @@ def process_app_data(app_name, app_address):
         print(found_data)
         
         # Log any found sensitive data
-        log_results(found_data, file_path)
+        log_results(found_data, file_path, app_name)
         
         # If the file is a SQLite database, extract further information
         if file_path.endswith('.db'):
             db_data = extract_from_sqlite(file_path)
-            log_results(db_data, file_path)
+            log_results(db_data, file_path, app_name)
         
         # If the file is a shared preference, extract data
         elif file_path.endswith('.xml') or file_path.endswith('.json'):
             pref_data = extract_from_preferences(file_path)
-            log_results(pref_data, file_path)
+            log_results(pref_data, file_path, app_name)
         
         # Handle cache files
         elif file_path.endswith('.cache'):
             cache_data = extract_from_cache(file_path)
-            log_results(cache_data, file_path)
-
-def process_files(app_address, patterns):
-    """
-    Process all files within a directory to extract sensitive information.
-    """
-    relevant_files = search_files(app_address)
-    
-    for file_path in relevant_files:
-        found_data = search_sensitive_data(file_path, patterns)
-        if found_data:
-            log_results(found_data, file_path)
+            log_results(cache_data, file_path, app_name)
 
 def search_database_for_sensitive_info(db_file):
     """

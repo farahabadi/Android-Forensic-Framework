@@ -6,7 +6,6 @@ scenario=$2
 
 cleanup() {
     adb pull -a /sdcard/$scenario.pcap $save_address/$scenario.pcap
-    exit 0
 }
 
 trap cleanup SIGINT

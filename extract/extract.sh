@@ -59,11 +59,15 @@ else
 
     adb shell su -c cp -pr /data/data/$app_name /sdcard/data_tmp
     adb pull -a /sdcard/data_tmp/$app_name $address/extract/apps_data
-    adb shell rmdir /sdcard/data_tmp/$app_name
+    adb shell su -c rm -rf  /sdcard/data_tmp/$app_name
 
-    adb shell su -c cp -rp /data/system /sdcard/data_tmp
-    adb pull -a /sdcard/data_tmp/system $address/extract/other
-    adb shell rmdir /sdcard/data_tmp
+    adb shell mkdir /sdcard/data_tmp/important_databases
+    adb shell su -c cp -rp /data/data/com.android.providers.contacts/databases/* /sdcard/data_tmp/important_databases
+    adb shell su -c cp -rp  /data/data/com.android.providers.telephony/databases/* /sdcard/data_tmp/important_databases
+    adb pull -a /sdcard/data_tmp/important_databases $address/extract/other
+    adb shell su -c rm -rf  /sdcard/data_tmp
+
+
 
     adb pull -a /sdcard $address/extract/media
 fi
