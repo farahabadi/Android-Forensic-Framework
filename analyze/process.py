@@ -8,6 +8,7 @@ from addresses import get_address
 from util import image_utils
 from .app_process import process_app_data
 from .network_process import start
+from .timeline_process import process_timeline
 
 ext_list=["archive", "app", "audio", "book", "code", "exec", "font", "image", "sheet", "slide", "text", "video", "web", "db", "others"]
 ext=dict()
@@ -16,21 +17,23 @@ known_apps=[]
 
 def start_process(address, out, whole, app_name):
     
+    project_address = get_address("project_dir")
+
     # organise by extension
-    create_extensions()
-    extension_org(address, out)
+    # create_extensions()
+    # extension_org(address, out)
 
     #face analysis
     img_address = get_address("project_process_extension_image")
     save_address = get_address("project_process_face")
     process_images(img_address, save_address)
 
-    # app data analysis
+    # apps data analysis
     app_address = get_address("project_extract_app")
-    app_address = app_address + "/" + app_name
-    # media_address = get_address("project_extract_media")
-    if (whole):
-        process_app_data1(app_name, app_address)
+    for app in app_name:
+        app_address = app_address + "/" + app
+        if (whole):
+            process_app_data1(app, app_address)
 
 
     pcap_address = get_address("project_extract_network")
@@ -39,6 +42,8 @@ def start_process(address, out, whole, app_name):
         print("analyze network data")
         process_network_data(pcap_address, network_output_dir)
 
+    process_timeline(project_address)
+    
 
 
 
@@ -83,7 +88,7 @@ def copy_file(src, dest):
     try:
         
         shutil.copy2(src, dest)
-        print(f"File '{src}' copied successfully to '{dest}'")
+        # print(f"File '{src}' copied successfully to '{dest}'")
 
     except Exception as e:
         print(f"Error copying file: {e}")

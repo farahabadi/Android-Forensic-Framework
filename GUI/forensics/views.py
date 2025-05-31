@@ -10,6 +10,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..',
 import main
 from .logic import parse_sqlite, parse_pcap
 import subprocess
+import csv
+import datetime
+import pytz
 
 def create_project(request):
     """Create a new project."""
@@ -68,7 +71,7 @@ def get_package_names():
     """Returns a list of installed package names from the connected device."""
     try:
         output = subprocess.check_output(
-            ["adb", "shell", "pm", "list", "packages"], text=True
+            ["adb", "shell", "pm", "list", "packages", "-3"], text=True
         )
         packages = [line.strip().split(":")[1] for line in output.strip().splitlines()]
         return [(pkg, pkg) for pkg in packages]  # Django expects (value, label)
@@ -82,10 +85,14 @@ def add_application(request, project_name):
     if request.method == 'POST':
         form = ApplicationForm(request.POST, package_choices=package_choices)
         if form.is_valid():
-            package_name = form.cleaned_data['package_name']
+            # Changed from 'package_name' to 'package_names'
+            package_names = form.cleaned_data['package_names']
             is_rooted = form.cleaned_data['is_rooted']
+            print(package_names)
 
-            res = main.start_project(project_name, is_rooted, package_name)
+            # You might need to adjust this line based on what main.start_project expects
+            # If it expects a single package name, you may need to handle the list differently
+            res = main.start_project(project_name, is_rooted, package_names)
 
             return redirect(f"http://127.0.0.1:8000/project/{project_name}/browse")
     else:
@@ -95,6 +102,43 @@ def add_application(request, project_name):
         'form': form,
         'project_name': project_name
     })
+
+#########################################################################################################################################3
+
+def timeline_view(request, project_name):
+    """Display timeline of forensic events"""
+    project_path = os.path.join(settings.PROJECTS_DIR, project_name)
+    timeline_path = os.path.join(project_path, "processed_data", "timeline", "combined", "timeline.csv")
+    
+    if not os.path.exists(timeline_path):
+        raise Http404("Timeline data not processed yet")
+
+    timeline_data = []
+    with open(timeline_path, 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # Convert timestamp to datetime object
+            try:
+                dt = datetime.datetime.fromtimestamp(float(row['timestamp']), tz=pytz.UTC)
+            except (ValueError, TypeError):
+                dt = None
+                
+            timeline_data.append({
+                'timestamp': dt,
+                'type': row['type'],
+                'event': row['event'],
+                'details': row['details'],
+                'content': row.get('content', '')
+            })
+
+    # Sort by timestamp descending
+    timeline_data.sort(key=lambda x: x['timestamp'] or datetime.min, reverse=True)
+
+    return render(request, 'timeline.html', {
+        'project_name': project_name,
+        'timeline_data': timeline_data
+    })
+
 
 
 #############################################################################################################################################

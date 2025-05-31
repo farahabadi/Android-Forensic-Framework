@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Forensic Timeline - {{ project_name }}</h2>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <select class="form-select" id="timelineFilter">
+                        <option value="all">All Event Types</option>
+                        <option value="contact">Contacts</option>
+                        <option value="call">Calls</option>
+                        <option value="sms">SMS/MMS</option>
+                        <option value="media">Media Files</option>
+                        <option value="network">Network Activity</option>
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <input type="text" class="form-control" id="timelineSearch" 
+                           placeholder="Search events...">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="timeline">
+        {% for event in timeline_data %}
+        <div class="timeline-item {{ event.type }} {% if not event.timestamp %}no-date{% endif %}"
+             data-type="{{ event.type }}"
+             data-content="{{ event.details|lower }} {{ event.content|lower }}">
+            <div class="timeline-point"></div>
+            <div class="timeline-content card">
+                <div class="card-body">
+                    <div class="timeline-header">
+                        <span class="badge bg-{{ event.type }} me-2">
+                            {{ event.type|upper }}
+                        </span>
+                        <small class="text-muted">
+                            {% if event.timestamp %}
+                                {{ event.timestamp|date:"Y-m-d H:i:s" }}
+                            {% else %}
+                                (Unknown date)
+                            {% endif %}
+                        </small>
+                    </div>
+                    <h5 class="mt-2">{{ event.event }}</h5>
+                    <p class="mb-1">{{ event.details }}</p>
+                    {% if event.content %}
+                    <div class="content-preview mt-2 p-2 bg-light rounded">
+                        {{ event.content|truncatechars:100 }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 40px;
+    margin-left: 16px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 2rem;
+}
+
+.timeline-point {
+    position: absolute;
+    left: -34px;
+    top: 15px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid;
+}
+
+.timeline-content {
+    transition: all 0.3s ease;
+}
+
+.timeline-item:hover .timeline-content {
+    transform: translateX(10px);
+}
+
+/* Type-specific styling */
+.contact .timeline-point { border-color: #0d6efd; }
+.call .timeline-point { border-color: #198754; }
+.sms .timeline-point { border-color: #ffc107; }
+.media .timeline-point { border-color: #dc3545; }
+.network .timeline-point { border-color: #6f42c1; }
+
+.badge.contact { background: #0d6efd; }
+.badge.call { background: #198754; }
+.badge.sms { background: #ffc107; }
+.badge.media { background: #dc3545; }
+.badge.network { background: #6f42c1; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const filter = document.getElementById('timelineFilter');
+    const search = document.getElementById('timelineSearch');
+    
+    function filterTimeline() {
+        const typeFilter = filter.value;
+        const searchTerm = search.value.toLowerCase();
+        
+        document.querySelectorAll('.timeline-item').forEach(item => {
+            const matchesType = typeFilter === 'all' || 
+                              item.dataset.type === typeFilter;
+            const matchesSearch = item.dataset.content.includes(searchTerm);
+            
+            item.style.display = (matchesType && matchesSearch) ? 
+                               'block' : 'none';
+        });
+    }
+    
+    filter.addEventListener('change', filterTimeline);
+    search.addEventListener('input', filterTimeline);
+});
+</script>
+{% endblock %}

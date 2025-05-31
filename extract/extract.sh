@@ -64,10 +64,9 @@ else
     adb shell mkdir /sdcard/data_tmp/important_databases
     adb shell su -c cp -rp /data/data/com.android.providers.contacts/databases/* /sdcard/data_tmp/important_databases
     adb shell su -c cp -rp  /data/data/com.android.providers.telephony/databases/* /sdcard/data_tmp/important_databases
+    adb shell su -c cp -rp  /data/data/com.android.providers.calendar/databases/* /sdcard/data_tmp/important_databases
     adb pull -a /sdcard/data_tmp/important_databases $address/extract/other
     adb shell su -c rm -rf  /sdcard/data_tmp
-
-
 
     adb pull -a /sdcard $address/extract/media
 fi

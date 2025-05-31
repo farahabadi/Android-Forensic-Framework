@@ -203,7 +203,7 @@ def start_face_process(img_address, face_address):
     face_extract(img_address, face_address)
     embd_save_address = face_address + "/embeddings.pkl"
     embeddings = extract_embeddings(face_address, model_name='ArcFace', save_path=embd_save_address)
-    identities = cluster_faces_by_identity(embeddings, eps=0.5, min_samples=3)
+    identities = cluster_faces_by_identity(embeddings, eps=0.5, min_samples=2)
     output_dir = face_address + "/identities"
     save_identities(identities, output_dir)
     

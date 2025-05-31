@@ -10,6 +10,7 @@ import numpy as np
 import time
 import os
 import keyboard
+import time
 
 
 
@@ -21,9 +22,16 @@ def start_project(name, whole, app_name):
   evidence_database.create_database()
   process_address = get_address("project_process")
   extracted_address = get_address("project_extract")
-  
+
+  scenarios_time = input("how many seconds needed to do scenarios?")
+  print("start scenarios. put pcap in project/extract/network")
+  time.sleep(int(scenarios_time))
+  # print("end scenarios in 50 seconds")
+  # time.sleep(50)
+  print("start extraction")
+
   # extract data
-  evidence_database.extract_and_save(whole, app_name)
+  # evidence_database.extract_and_save(whole, app_name)
 
   # process data
   process.start_process(extracted_address, process_address, whole, app_name)

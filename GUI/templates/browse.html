@@ -16,7 +16,8 @@
 
 <h3 class="mb-4">{{ path|join:"/" }}</h3>
 
-<div class="row row-cols-1 row-cols-md-3 g-4">
+
+<div class="row row-cols-1 row-cols-md-3 g-4 mb-5">
     {% for item in items %}
     <div class="col">
         <div class="card file-card h-100">
@@ -24,7 +25,6 @@
                 <a href="{% url 'browse_project' project_name=project subpath=item.url %}" data-bs-toggle="modal" data-bs-target="#imgModal{{ forloop.counter }}">
                     <img src="{{ item.file_url }}" class="card-img-top file-thumb" alt="{{ item.name }}">
                 </a>
-                <!-- Modal for fullscreen image -->
                 <div class="modal fade" id="imgModal{{ forloop.counter }}" tabindex="-1">
                   <div class="modal-dialog modal-dialog-centered modal-lg">
                     <div class="modal-content">
@@ -60,5 +60,9 @@
         </div>
     </div>
     {% endfor %}
+    
 </div>
+ <a class="btn btn-sm btn-outline-primary" href="{% url 'timeline_view' project_name=project %}">Time Line</a>
+
+
 {% endblock %}
