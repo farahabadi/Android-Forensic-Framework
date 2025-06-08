@@ -61,9 +61,10 @@ def select_project(request):
         elif 'compare_submit' in request.POST:
             project_name1 = request.POST.get('project1')
             project_name2 = request.POST.get('project2')
+            type = request.POST.get('compare_type')
             print("1: ", project_name1, "  2: ", project_name2)
             if project_name1 and project_name2 and project_name1 != project_name2:
-                return redirect(f"/compare/{project_name1}/{project_name2}/")
+                return redirect(f"/compare/{project_name1}/{project_name2}/{type}")
             else:
                 print("error two are same")
 
@@ -72,11 +73,6 @@ def select_project(request):
         'project_choices': project_choices  # Not used directly in template but needed for form initialization
     })
 
-
-##############################################################################################################
-
-def compare_view(request, project_name1, project_name2):
-    print("Comparing:", project_name1, project_name2)
 
 
 ##############################################################################################################
@@ -161,6 +157,50 @@ def timeline_view(request, project_name):
     })
 
 
+
+
+##############################################################################################################
+
+def compare_view(request, project_name1, project_name2, type):
+    print("Comparing:", project_name1, project_name2, type)
+    if (type == "timeline"):
+        timeline_data1 = read_timeline(project_name1)
+        timeline_data2 = read_timeline(project_name2)
+        return render(request, 'compare_timelines.html', {
+            'project_name1': project_name1,
+            'project_name2': project_name2,
+            'timeline_data1': timeline_data1,
+            'timeline_data2': timeline_data2
+        })
+    elif (type == "persons"):
+        print("s")
+    else:
+        raise Http404("Comparison type not supported")
+
+def read_timeline(project_name):
+    """Helper to read timeline data for a project."""
+    project_path = os.path.join(settings.PROJECTS_DIR, project_name)
+    timeline_path = os.path.join(project_path, "processed_data", "timeline", "combined", "timeline.csv")
+    if not os.path.exists(timeline_path):
+        return []
+    timeline_data = []
+    with open(timeline_path, 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            try:
+                dt = datetime.datetime.fromtimestamp(float(row['timestamp']), tz=pytz.UTC)
+            except (ValueError, TypeError):
+                dt = None
+            timeline_data.append({
+                'timestamp': dt,
+                'type': row['type'],
+                'event': row['event'],
+                'details': row['details'],
+                'content': row.get('content', '')
+            })
+    # Sort by timestamp descending
+    timeline_data.sort(key=lambda x: x['timestamp'] or datetime.datetime.min, reverse=True)
+    return timeline_data
 
 #############################################################################################################################################
 

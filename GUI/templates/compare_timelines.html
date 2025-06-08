@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block content %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+<div class="container mt-4">
+  <h2 class="mb-4 text-center">Compare Timelines</h2>
+
+  <!-- Event Type Filter -->
+  <div class="mb-3">
+    <label for="eventTypeFilter" class="form-label">Filter Event Types</label>
+    <select id="eventTypeFilter" class="form-select" multiple>
+      <option value="all" selected>All Event Types</option>
+      <option value="calendar">Calendar</option>
+      <option value="contact">Contacts</option>
+      <option value="call">Calls</option>
+      <option value="sms">SMS/MMS</option>
+      <option value="media">Media Files</option>
+    </select>
+  </div>
+
+  <!-- Combine timelines checkbox -->
+  <div class="form-check mb-4">
+    <input class="form-check-input" type="checkbox" id="combineTimelinesCheck" />
+    <label class="form-check-label" for="combineTimelinesCheck">
+      Combine projects' events into one timeline
+    </label>
+  </div>
+
+  <!-- Side-by-side timelines container -->
+  <div class="row" id="timelinesContainer">
+    <!-- Timeline 1 -->
+    <div class="col-md-6 timeline-col" id="timelineCol1">
+      <div class="card shadow mb-4">
+        <div class="card-header bg-primary text-white text-center">
+          <h5 class="mb-0">{{ project_name1 }}</h5>
+        </div>
+        <div class="card-body timeline-side" id="timeline1">
+          {% for event in timeline_data1 %}
+          <div class="timeline-item mb-3 border rounded p-3" data-type="{{ event.type }}">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="badge bg-info text-dark">{{ event.type|upper }}</span>
+              <small class="text-muted">
+                {% if event.timestamp %}
+                  {{ event.timestamp|date:"Y-m-d H:i:s" }}
+                {% else %}
+                  (Unknown date)
+                {% endif %}
+              </small>
+            </div>
+            <h6>{{ event.event }}</h6>
+            <p class="mb-1">{{ event.details }}</p>
+            {% if event.content %}
+            <div class="content-preview bg-light rounded p-2">
+              {{ event.content|truncatechars:100 }}
+            </div>
+            {% endif %}
+          </div>
+          {% empty %}
+          <p class="text-muted">No timeline data.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Timeline 2 -->
+    <div class="col-md-6 timeline-col" id="timelineCol2">
+      <div class="card shadow mb-4">
+        <div class="card-header bg-success text-white text-center">
+          <h5 class="mb-0">{{ project_name2 }}</h5>
+        </div>
+        <div class="card-body timeline-side" id="timeline2">
+          {% for event in timeline_data2 %}
+          <div class="timeline-item mb-3 border rounded p-3" data-type="{{ event.type }}">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="badge bg-info text-dark">{{ event.type|upper }}</span>
+              <small class="text-muted">
+                {% if event.timestamp %}
+                  {{ event.timestamp|date:"Y-m-d H:i:s" }}
+                {% else %}
+                  (Unknown date)
+                {% endif %}
+              </small>
+            </div>
+            <h6>{{ event.event }}</h6>
+            <p class="mb-1">{{ event.details }}</p>
+            {% if event.content %}
+            <div class="content-preview bg-light rounded p-2">
+              {{ event.content|truncatechars:100 }}
+            </div>
+            {% endif %}
+          </div>
+          {% empty %}
+          <p class="text-muted">No timeline data.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Combined timeline container (hidden by default) -->
+  <div class="card shadow mb-4" id="combinedTimelineCard" style="display:none;">
+    <div class="card-header bg-secondary text-white text-center">
+      <h5 class="mb-0">Combined Timeline</h5>
+    </div>
+    <div class="card-body timeline-side" id="combinedTimeline">
+      <!-- Combined events injected by JS -->
+    </div>
+  </div>
+</div>
+
+<style>
+  .timeline-side {
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+  .timeline-item {
+    transition: box-shadow 0.2s;
+  }
+  .timeline-item:hover {
+    box-shadow: 0 0 0 0.2rem #0d6efd33;
+  }
+</style>
+
+<!-- jQuery and Select2 JS -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+  // Initialize Select2 for event type filter
+  $('#eventTypeFilter').select2({
+    placeholder: "Select event types",
+    allowClear: true,
+    width: '100%'
+  });
+
+  function filterTimelines() {
+    let selected = $('#eventTypeFilter').val() || [];
+    if (selected.includes('all') && selected.length > 1) {
+      selected = selected.filter(v => v !== 'all');
+      $('#eventTypeFilter').val(selected).trigger('change.select2');
+    }
+
+    $('.timeline-item').each(function() {
+      const type = $(this).data('type');
+      if (selected.length === 0 || selected.includes('all') || selected.includes(type)) {
+        $(this).show();
+      } else {
+        $(this).hide();
+      }
+    });
+
+    // Also filter combined timeline items if visible
+    $('#combinedTimeline .timeline-item').each(function() {
+      const type = $(this).data('type');
+      if (selected.length === 0 || selected.includes('all') || selected.includes(type)) {
+        $(this).show();
+      } else {
+        $(this).hide();
+      }
+    });
+  }
+
+  $('#eventTypeFilter').on('change', filterTimelines);
+
+  // Toggle combined timeline view
+  $('#combineTimelinesCheck').on('change', function() {
+    if (this.checked) {
+      // Hide side-by-side timelines
+      $('#timelinesContainer').hide();
+      // Show combined timeline container
+      $('#combinedTimelineCard').show();
+
+      // Merge events from both timelines
+      let events = [];
+
+      $('#timeline1 .timeline-item').each(function() {
+        const timestampText = $(this).find('small.text-muted').text().trim();
+        const timestamp = new Date(timestampText) || new Date(0);
+        events.push({ html: $(this).prop('outerHTML'), timestamp: timestamp });
+      });
+      $('#timeline2 .timeline-item').each(function() {
+        const timestampText = $(this).find('small.text-muted').text().trim();
+        const timestamp = new Date(timestampText) || new Date(0);
+        events.push({ html: $(this).prop('outerHTML'), timestamp: timestamp });
+      });
+
+      // Sort descending by timestamp
+      events.sort((a, b) => b.timestamp - a.timestamp);
+
+      // Inject sorted events into combined timeline div
+      const combinedDiv = $('#combinedTimeline');
+      combinedDiv.empty();
+      events.forEach(e => combinedDiv.append(e.html));
+
+      // Apply filter after combining
+      filterTimelines();
+    } else {
+      // Show side-by-side timelines
+      $('#timelinesContainer').show();
+      // Hide combined timeline container
+      $('#combinedTimelineCard').hide();
+    }
+  });
+
+  // Initial filter call
+  filterTimelines();
+});
+</script>
+{% endblock %}
