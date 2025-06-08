@@ -1,23 +1,28 @@
 {% extends "base.html" %}
 
 {% block content %}
+<!-- Include Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
 <div class="container mt-4">
     <h2 class="mb-4">Forensic Timeline - {{ project_name }}</h2>
     
     <div class="card mb-4">
         <div class="card-body">
-            <div class="row g-3">
+            <div class="row g-3 align-items-end">
                 <div class="col-md-4">
-                    <select class="form-select" id="timelineFilter">
-                        <option value="all">All Event Types</option>
+                    <label for="timelineFilter" class="form-label">Filter Event Types</label>
+                    <select class="form-select" id="timelineFilter" multiple>
+                        <option value="all" selected>All Event Types</option>
+                        <option value="calendar">Calendar</option>
                         <option value="contact">Contacts</option>
                         <option value="call">Calls</option>
                         <option value="sms">SMS/MMS</option>
                         <option value="media">Media Files</option>
-                        <option value="network">Network Activity</option>
                     </select>
                 </div>
                 <div class="col-md-8">
+                    <label for="timelineSearch" class="form-label">Search Events</label>
                     <input type="text" class="form-control" id="timelineSearch" 
                            placeholder="Search events...">
                 </div>
@@ -105,36 +110,60 @@
 .call .timeline-point { border-color: #198754; }
 .sms .timeline-point { border-color: #ffc107; }
 .media .timeline-point { border-color: #dc3545; }
-.network .timeline-point { border-color: #6f42c1; }
+.calendar .timeline-point { border-color: #6f42c1; }
 
 .badge.contact { background: #0d6efd; }
 .badge.call { background: #198754; }
 .badge.sms { background: #ffc107; }
 .badge.media { background: #dc3545; }
-.badge.network { background: #6f42c1; }
+.badge.calendar { background: #6f42c1; }
+
+#timelineFilter {
+    height: 250px; /* adjust as needed */
+}
 </style>
+
+<!-- Include jQuery (required for Select2) -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- Include Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const filter = document.getElementById('timelineFilter');
+    // Initialize Select2 multi-select dropdown
+    $('#timelineFilter').select2({
+        placeholder: "Select event types",
+        allowClear: true,
+        width: '100%'
+    });
+
+    const filter = $('#timelineFilter');
     const search = document.getElementById('timelineSearch');
-    
-    function filterTimeline() {
-        const typeFilter = filter.value;
-        const searchTerm = search.value.toLowerCase();
-        
-        document.querySelectorAll('.timeline-item').forEach(item => {
-            const matchesType = typeFilter === 'all' || 
-                              item.dataset.type === typeFilter;
-            const matchesSearch = item.dataset.content.includes(searchTerm);
-            
-            item.style.display = (matchesType && matchesSearch) ? 
-                               'block' : 'none';
-        });
+
+function filterTimeline() {
+    let selectedOptions = filter.val() || [];
+
+    if (selectedOptions.includes('all') && selectedOptions.length > 1) {
+        selectedOptions = selectedOptions.filter(opt => opt !== 'all');
+        filter.val(selectedOptions).trigger('change.select2');
     }
-    
-    filter.addEventListener('change', filterTimeline);
+
+    const searchTerm = search.value.toLowerCase();
+
+    document.querySelectorAll('.timeline-item').forEach(item => {
+        const matchesType = (selectedOptions.length === 0 || selectedOptions.includes('all'))
+                            ? true
+                            : selectedOptions.includes(item.dataset.type);
+        const matchesSearch = item.dataset.content.includes(searchTerm);
+
+        item.style.display = (matchesType && matchesSearch) ? 'block' : 'none';
+    });
+}
+
+    filter.on('change', filterTimeline);
     search.addEventListener('input', filterTimeline);
+
+    filterTimeline();
 });
 </script>
 {% endblock %}

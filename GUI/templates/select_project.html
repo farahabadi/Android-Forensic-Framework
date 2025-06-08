@@ -1,5 +1,3 @@
-{# templates/select_project.html #}
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -33,6 +31,53 @@
                 </form>
             </div>
         </div>
+
+        <!-- Compare Projects Card -->
+<div class="card mb-4">
+    <div class="card-header text-center">
+        <h4>Compare Two Projects</h4>
+    </div>
+    <div class="card-body">
+        <form method="post" id="compareForm">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label">Project 1</label>
+                <select name="project1" class="form-select" required>
+                    <option value="" disabled selected>Select first project</option>
+                    {% for value, label in form.project_name.field.choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Project 2</label>
+                <select name="project2" class="form-select" required>
+                    <option value="" disabled selected>Select second project</option>
+                    {% for value, label in form.project_name.field.choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="d-grid">
+                <button type="submit" name="compare_submit" class="btn btn-primary">Compare Projects</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.getElementById('compareForm').addEventListener('submit', function(event) {
+        const project1 = this.elements['project1'].value;
+        const project2 = this.elements['project2'].value;
+        
+        if (project1 === project2) {
+            alert('Please select two different projects to compare.');
+            event.preventDefault();
+        }
+    });
+</script>
+
+
         <!-- Create Project Card -->
         <div class="card">
             <div class="card-header text-center">
@@ -45,5 +90,18 @@
             </div>
         </div>
     </div>
+
+    <script>
+        // Validate that two different projects are selected before submitting the compare form
+        document.getElementById('compareForm').addEventListener('submit', function(event) {
+            const project1 = document.getElementById('id_project1').value;
+            const project2 = document.getElementById('id_project2').value;
+
+            if (project1 === project2) {
+                alert('Please select two different projects to compare.');
+                event.preventDefault();
+            }
+        });
+    </script>
 </body>
 </html>

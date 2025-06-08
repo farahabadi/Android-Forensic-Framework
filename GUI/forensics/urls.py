@@ -10,4 +10,5 @@ urlpatterns = [
     path('project/<str:project_name>/browse/', views.browse_project, name='browse_project'),
     path('project/<str:project_name>/browse/<path:subpath>/', views.browse_project, name='browse_project'),
     path('project/<str:project_name>/timeline/', views.timeline_view, name='timeline_view'),
+    path('compare/<str:project_name1>/<str:project_name2>/', views.compare_view, name='compare_view'),
 ]

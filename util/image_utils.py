@@ -36,8 +36,8 @@ def extract_faces(img, backend):
 # main method
 def face_extract(img_address, face_address):
     print("img address: ", img_address)
-    for _, _, files in os.walk(img_address):
-        crop_face_and_save(img_address, face_address, limit_size=5000)
+    # for _, _, files in os.walk(img_address):
+    crop_face_and_save(img_address, face_address, limit_size=5000)
 
 
 
@@ -94,7 +94,7 @@ def crop_face_and_save(db, save_address, limit_size):
             for face in faces:
                 conf = face['confidence']
                 print("confidence: ", conf)
-                if (conf < 0.5):
+                if (conf < 0.7):
                     continue
                 j+=1
                 area = face['facial_area']
@@ -110,93 +110,46 @@ def crop_face_and_save(db, save_address, limit_size):
 
 ##############################3##############################3##############################3##############################3####################
 
-# main method
-def extract_embeddings(face_dir, model_name='ArcFace', save_path='embeddings.pkl'):
-    """
-    Extract facial embeddings from cropped face images
-    """
-    if os.path.exists(save_path):
-        with open(save_path, 'rb') as f:
-            return pickle.load(f)
-    
-    embeddings = {}
-    face_paths = [os.path.join(face_dir, f) for f in os.listdir(face_dir) 
-                 if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-    
-    print(f"Extracting embeddings for {len(face_paths)} faces using {model_name}")
-    
-    for face_path in face_paths:
-        try:
-            embedding_obj = DeepFace.represent(
-                img_path=face_path,
-                model_name=model_name,
-                enforce_detection=False
-            )
-            embedding = embedding_obj[0]["embedding"] if isinstance(embedding_obj, list) else embedding_obj["embedding"]
-            embeddings[face_path] = embedding
-        except Exception as e:
-            print(f"Error processing {face_path}: {str(e)}")
-    
-    with open(save_path, 'wb') as f:
-        pickle.dump(embeddings, f)
-    
-    return embeddings
 
-# main method
-
-def cluster_faces_by_identity(embeddings, eps=0.4, min_samples=2):
-    """
-    Cluster face embeddings using DBSCAN algorithm
-    """
-    face_paths = list(embeddings.keys())
-    embedding_matrix = np.array([embeddings[path] for path in face_paths])
-    
-    # Normalize embeddings for cosine similarity
-    embedding_matrix = embedding_matrix / np.linalg.norm(embedding_matrix, axis=1, keepdims=True)
-    
-    # DBSCAN clustering with cosine distance
-    clustering = DBSCAN(eps=eps, min_samples=min_samples, metric='cosine').fit(embedding_matrix)
-    labels = clustering.labels_
-    
-    # Create identity groups
-    identities = {}
-    for path, label in zip(face_paths, labels):
-        identity_id = f"identity_{label}" if label != -1 else f"unknown_{abs(hash(path))}"
-        identities.setdefault(identity_id, []).append(path)
-    
-    print(f"Created {len(identities)} identity clusters")
-    return identities
-
-
-# main method
-def save_identities(identities, output_dir='identities'):
-    """
-    Organize faces into identity-based directory structure
-    """
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-    os.makedirs(output_dir, exist_ok=True)
-    
-    identity_map = {}
-    
-    for identity_id, face_paths in identities.items():
-        identity_dir = os.path.join(output_dir, identity_id)
-        os.makedirs(identity_dir, exist_ok=True)
-        
-        for face_path in face_paths:
-            face_filename = os.path.basename(face_path)
-            dest_path = os.path.join(identity_dir, face_filename)
-            shutil.copy2(face_path, dest_path)
-        
-        identity_map[identity_id] = {
-            'num_faces': len(face_paths),
-            'faces': [os.path.basename(p) for p in face_paths]
-        }
-    
-    # Save metadata
-    with open(os.path.join(output_dir, 'identity_metadata.json'), 'w') as f:
-        json.dump(identity_map, f, indent=2)
-    
+def find_same_identities(face_address, save_path, thresh, same_num):
+    id=1
+    all_related=[]
+    size_limit = 10000
+    os.makedirs(save_path, exist_ok=True)
+    os.makedirs((save_path + "/others"), exist_ok=True)
+    for file in os.listdir(face_address):
+        pic = os.path.join(face_address, file)
+        ext = os.path.splitext(pic)[-1].lower()
+        if (ext == ".jpg" or ext == ".png"):
+            if pic in all_related:
+                continue
+            if (os.path.getsize(pic) < size_limit):
+                shutil.copy2(pic, save_path + "/others")
+                continue
+            same=0
+            related=[]
+            results = DeepFace.find(img_path=pic, db_path=face_address, detector_backend="yolov8", model_name="ArcFace", enforce_detection="False")
+            for df in results:
+                for index, row in df.iterrows():
+                    if (float(row['distance']) < float(thresh)):
+                        # print("row['identiry']", row['identity'])
+                        if (os.path.getsize(row['identity']) < size_limit):
+                            continue
+                        if (row['identity'] in all_related):
+                            continue
+                        related.append(row['identity'])
+                        all_related.append(row['identity'])
+                        same +=1
+            print("same: ", same)
+            if same >= same_num:
+                address = save_path + "/identity" + str(id)
+                os.makedirs(address, exist_ok=True)
+                for file in related:
+                    shutil.copy2(file, address)
+                shutil.copy2(pic, address)
+                id +=1
+            else:
+                shutil.copy2(pic, save_path + "/others")
 
 
 def start_face_process(img_address, face_address):
@@ -207,3 +160,6 @@ def start_face_process(img_address, face_address):
     output_dir = face_address + "/identities"
     save_identities(identities, output_dir)
     
+if __name__ == '__main__':
+    # face_extract("projects/proj2/processed_data/extension/image", "projects/proj2/processed_data/faces")
+    find_same_identities("projects/proj2/processed_data/faces", "projects/proj2/processed_data/faces/identities", thresh="0.5", same_num=2)

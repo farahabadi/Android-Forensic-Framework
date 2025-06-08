@@ -47,16 +47,37 @@ def list_projects():
 def select_project(request):
     """View for selecting a project to browse."""
     project_choices = list_projects()
+    form = ProjectSelectForm(project_choices=project_choices)
 
     if request.method == 'POST':
-        form = ProjectSelectForm(request.POST, project_choices=project_choices)
-        if form.is_valid():
-            project_name = form.cleaned_data['project_name']
-            return redirect(f"/project/{project_name}/browse")
-    else:
-        form = ProjectSelectForm(project_choices=project_choices)
+        # Handle Browse Project form
+        if 'project_name' in request.POST:
+            form = ProjectSelectForm(request.POST, project_choices=project_choices)
+            if form.is_valid():
+                project_name = form.cleaned_data['project_name']
+                return redirect(f"/project/{project_name}/browse")
 
-    return render(request, 'select_project.html', {'form': form})
+        # Handle Compare Projects form
+        elif 'compare_submit' in request.POST:
+            project_name1 = request.POST.get('project1')
+            project_name2 = request.POST.get('project2')
+            print("1: ", project_name1, "  2: ", project_name2)
+            if project_name1 and project_name2 and project_name1 != project_name2:
+                return redirect(f"/compare/{project_name1}/{project_name2}/")
+            else:
+                print("error two are same")
+
+    return render(request, 'select_project.html', {
+        'form': form,
+        'project_choices': project_choices  # Not used directly in template but needed for form initialization
+    })
+
+
+##############################################################################################################
+
+def compare_view(request, project_name1, project_name2):
+    print("Comparing:", project_name1, project_name2)
+
 
 ##############################################################################################################
 

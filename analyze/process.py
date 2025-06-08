@@ -26,7 +26,7 @@ def start_process(address, out, whole, app_name):
     #face analysis
     img_address = get_address("project_process_extension_image")
     save_address = get_address("project_process_face")
-    process_images(img_address, save_address)
+    # process_images(img_address, save_address)
 
     # apps data analysis
     app_address = get_address("project_extract_app")

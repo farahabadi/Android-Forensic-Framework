@@ -11,20 +11,68 @@ def process_timeline(project_path):
     
     # Process different data sources
     contacts_timeline = process_contacts(os.path.join(project_path, "extract", "other", "important_databases", "contacts2.db"))
+    calendar_timeline = process_calendar(os.path.join(project_path, "extract", "other", "important_databases", "calendar.db"))
+    sms_timeline = process_sms(os.path.join(project_path, "extract", "other", "important_databases", "mmssms.db"))
     calllog_timeline = process_calllogs(os.path.join(project_path, "extract", "other", "important_databases", "calllog.db"))
     media_timeline = process_media(os.path.join(project_path, "extract", "media", "sdcard"))
-    network_timeline = process_network(os.path.join(project_path, "extract", "network", "net.pcap"))
     
     # Combine all timelines
-    combined = contacts_timeline + calllog_timeline + media_timeline + network_timeline
+    combined = contacts_timeline + calllog_timeline + media_timeline  + calendar_timeline + sms_timeline
     combined.sort(key=lambda x: x["timestamp"])
     
     # Save individual timelines
     save_timeline(contacts_timeline, os.path.join(base_path, "contacts"))
+    save_timeline(calendar_timeline, os.path.join(base_path, "calendar"))
     save_timeline(calllog_timeline, os.path.join(base_path, "calllogs"))
+    save_timeline(sms_timeline, os.path.join(base_path, "sms"))
     save_timeline(media_timeline, os.path.join(base_path, "media"))
-    save_timeline(network_timeline, os.path.join(base_path, "network"))
     save_timeline(combined, os.path.join(base_path, "combined"))
+
+def process_calendar(db_path):
+    timeline = []
+    if not os.path.exists(db_path):
+        print(f"Calendar DB not found at {db_path}")
+        return timeline
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        query = """
+SELECT 
+    e._id AS event_id,
+    c.calendar_displayName AS calendar_name,
+    e.title,
+    e.description,
+    e.eventLocation,
+    datetime(e.dtstart / 1000, 'unixepoch', 'localtime') AS start_time,
+    datetime(e.dtend / 1000, 'unixepoch', 'localtime') AS end_time
+FROM Events AS e
+JOIN Calendars AS c ON e.calendar_id = c._id
+ORDER BY e.dtstart DESC;
+        """
+        cursor.execute(query)
+        for row in cursor.fetchall():
+            event_id, calendar_name, title, description, location, start_time_str, end_time_str = row
+            
+            try:
+                start_ts = datetime.strptime(start_time_str, '%Y-%m-%d %H:%M:%S').timestamp()
+            except Exception:
+                start_ts = None
+
+            details = f"Calendar: {calendar_name}, Title: {title or 'N/A'}, Description: {description or 'N/A'}, Location: {location or 'N/A'}"
+
+            timeline.append({
+                "timestamp": start_ts,
+                "type": "calendar",
+                "event": "Calendar event",
+                "details": details
+            })
+
+        conn.close()
+    except Exception as e:
+        print(f"Error processing calendar events: {e}")
+    return timeline
+
 
 def process_contacts(db_path):
     timeline = []
@@ -140,7 +188,7 @@ def process_media(media_path):
                     pass
                 
             timeline.append({
-                "timestamp": exif_time or fs_times["created"],
+                "timestamp": exif_time or fs_times["modified"],
                 "type": "media",
                 "event": "File created",
                 "details": f"Path: {os.path.relpath(file_path, media_path)}",
@@ -149,22 +197,70 @@ def process_media(media_path):
     
     return timeline
 
-def process_network(pcap_path):
+
+def process_sms(db_path):
     timeline = []
+    if not os.path.exists(db_path):
+        print(f"SMS DB not found at {db_path}")
+        return timeline
     try:
-        packets = rdpcap(pcap_path)
-        for pkt in packets:
-            timestamp = pkt.time
-            details = f"{pkt.summary()} | Protocol: {pkt.name}"
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        query = """
+SELECT
+    _id,
+    address,
+    date,
+    date_sent,
+    body,
+    type
+FROM sms
+ORDER BY date DESC;
+        """
+        cursor.execute(query)
+        for row in cursor.fetchall():
+            msg_id, address, date_ms, date_sent_ms, body, msg_type = row
+
+            # Convert timestamps
+            try:
+                date_str = datetime.fromtimestamp(date_ms / 1000).strftime('%Y-%m-%d %H:%M:%S')
+                timestamp = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').timestamp()
+            except:
+                timestamp = None
+
+            try:
+                sent_str = datetime.fromtimestamp(date_sent_ms / 1000).strftime('%Y-%m-%d %H:%M:%S') if date_sent_ms else None
+            except:
+                sent_str = None
+
+            if msg_type == 1:
+                direction = "Received"
+                contact = f"Sender: {address}"
+                extra_info = f", Sent Time: {sent_str}" if sent_str else ""
+            elif msg_type == 2:
+                direction = "Sent"
+                contact = f"Receiver: {address}"
+                extra_info = ""
+            else:
+                direction = f"Type {msg_type}"
+                contact = f"Address: {address}"
+                extra_info = ""
+
+            details = f"{direction} SMS | {contact}, Body: {body or '[empty]'}{extra_info}"
+
             timeline.append({
                 "timestamp": timestamp,
-                "type": "network",
-                "event": "Network activity",
+                "type": "sms",
+                "event": direction,
                 "details": details
             })
+
+        conn.close()
     except Exception as e:
-        print(f"Error processing network data: {e}")
+        print(f"Error processing SMS messages: {e}")
     return timeline
+
 
 def save_timeline(timeline, output_dir):
     os.makedirs(output_dir, exist_ok=True)
