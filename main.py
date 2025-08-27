@@ -14,8 +14,7 @@ import time
 
 
 
-
-def start_project(name, whole, app_name):
+def start_project(name, whole, app_name):  
   set_current_project_name(name)
   create_dirs()
 

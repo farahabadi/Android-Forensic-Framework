@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Messages — {{ project_name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+/* small UI tweaks */
+.dialogue-list { max-height: 64vh; overflow:auto; }
+.message-list { max-height: 64vh; overflow:auto; background: #fff; padding: 12px; border-radius: 6px; }
+.message-item { padding: 8px 10px; border-bottom: 1px solid #eef3f7; }
+.message-item:last-child { border-bottom: none; }
+.chat-badge { font-size: 0.8rem; }
+.search-row { gap: 8px; display:flex; align-items:center; }
+.no-results { color:#777; padding: 18px; text-align:center; }
+.small-muted { font-size:0.85rem; color:#6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12 mb-3">
+    <h4>Messages — <small class="text-muted">{{ project_name }}</small></h4>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-12 mb-3">
+    <div class="input-group">
+      <input id="filterSender" type="text" class="form-control" placeholder="Filter by sender (exact or partial)">
+      <input id="filterText" type="text" class="form-control" placeholder="Filter by message text">
+      <button id="btnSearch" class="btn btn-primary">Search</button>
+      <button id="btnClear" class="btn btn-outline-secondary">Clear</button>
+    </div>
+  </div>
+</div>
+
+<div>
+  <ul class="nav nav-tabs" id="typeTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="private-tab" data-bs-toggle="tab" data-bs-target="#private" type="button">Private</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="group-tab" data-bs-toggle="tab" data-bs-target="#group" type="button">Group</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="channel-tab" data-bs-toggle="tab" data-bs-target="#channel" type="button">Channel</button>
+    </li>
+  </ul>
+
+  <div class="tab-content mt-3">
+    {% comment %} Each tab contains a two-column layout: left = dialogues, right = messages for selected dialogue {% endcomment %}
+    <div class="tab-pane fade show active" id="private" role="tabpanel">
+      <div class="row">
+        <div class="col-md-4">
+          <div class="list-group dialogue-list" id="private-dialogues"></div>
+        </div>
+        <div class="col-md-8">
+          <div id="private-messages" class="message-list">
+            <div class="no-results">Select a dialogue to view messages</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="group" role="tabpanel">
+      <div class="row">
+        <div class="col-md-4">
+          <div class="list-group dialogue-list" id="group-dialogues"></div>
+        </div>
+        <div class="col-md-8">
+          <div id="group-messages" class="message-list">
+            <div class="no-results">Select a dialogue to view messages</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="channel" role="tabpanel">
+      <div class="row">
+        <div class="col-md-4">
+          <div class="list-group dialogue-list" id="channel-dialogues"></div>
+        </div>
+        <div class="col-md-8">
+          <div id="channel-messages" class="message-list">
+            <div class="no-results">Select a dialogue to view messages</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/*
+  dialogues_json is provided by the view as a JSON string.
+  Structure:
+    { "private": [ { chat_id, chat_name, messages: [{mid,timestamp_unix,timestamp,sender,message}] }, ... ],
+      "group": [...], "channel": [...] }
+*/
+const dialogues = JSON.parse('{{ dialogues_json|escapejs }}');
+
+// Helper: render dialogue list for a given type
+function renderDialogueList(type) {
+  const container = document.getElementById(type + '-dialogues');
+  container.innerHTML = '';
+  const list = dialogues[type] || [];
+  if (!list.length) {
+    container.innerHTML = '<div class="p-3 small-muted">No dialogues</div>';
+    return;
+  }
+  // sort dialogues by last message timestamp desc
+  list.sort((a,b) => {
+    const ta = (a.messages.length? (a.messages[a.messages.length-1].timestamp_unix||0):0);
+    const tb = (b.messages.length? (b.messages[b.messages.length-1].timestamp_unix||0):0);
+    return tb - ta;
+  });
+  list.forEach(d => {
+    const badgeCount = d.messages.length;
+    const el = document.createElement('button');
+    el.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-start';
+    el.dataset.chatId = d.chat_id;
+    el.innerHTML = `
+      <div class="ms-2 me-auto">
+        <div class="fw-semibold">${escapeHtml(d.chat_name)}</div>
+        <div class="small-muted">${d.chat_id}</div>
+      </div>
+      <span class="badge bg-secondary rounded-pill chat-badge">${badgeCount}</span>
+    `;
+    el.addEventListener('click', () => {
+      // highlight selected
+      const siblings = container.querySelectorAll('.list-group-item');
+      siblings.forEach(s=>s.classList.remove('active'));
+      el.classList.add('active');
+      renderMessages(type, d.chat_id);
+    });
+    container.appendChild(el);
+  });
+}
+
+// Helper: render messages for a dialogue (type + chat_id)
+function renderMessages(type, chatId) {
+  const area = document.getElementById(type + '-messages');
+  area.innerHTML = '';
+  const chatList = dialogues[type] || [];
+  const d = chatList.find(x => String(x.chat_id) === String(chatId));
+  if (!d) {
+    area.innerHTML = '<div class="no-results">No messages for this dialogue</div>';
+    return;
+  }
+  // show header
+  const header = document.createElement('div');
+  header.className = 'mb-2';
+  header.innerHTML = `<h5>${escapeHtml(d.chat_name)} <small class="small-muted">(${d.chat_id})</small></h5>`;
+  area.appendChild(header);
+
+  const listEl = document.createElement('div');
+  const filterSender = document.getElementById('filterSender').value.trim().toLowerCase();
+  const filterText = document.getElementById('filterText').value.trim().toLowerCase();
+
+  // messages already sorted ascending; show in order
+  const msgs = d.messages.filter(m => {
+    let ok = true;
+    if (filterSender) {
+      ok = ok && (String(m.sender||'').toLowerCase().indexOf(filterSender) !== -1);
+    }
+    if (filterText) {
+      ok = ok && (String(m.message||'').toLowerCase().indexOf(filterText) !== -1);
+    }
+    return ok;
+  });
+
+  if (!msgs.length) {
+    listEl.innerHTML = '<div class="no-results">No messages matched the current filter</div>';
+    area.appendChild(listEl);
+    return;
+  }
+
+  msgs.forEach(m => {
+    const item = document.createElement('div');
+    item.className = 'message-item';
+    const tsDisplay = formatTimestamp(m.timestamp_unix, m.timestamp);
+    item.innerHTML = `
+      <div class="d-flex justify-content-between">
+        <div><strong>${escapeHtml(m.sender || 'unknown')}</strong></div>
+        <div class="small-muted">${escapeHtml(tsDisplay)}</div>
+      </div>
+      <div class="mt-1">${escapeHtml(m.message || '')}</div>
+    `;
+    listEl.appendChild(item);
+  });
+
+  area.appendChild(listEl);
+  // scroll to bottom (latest)
+  area.scrollTop = area.scrollHeight;
+}
+
+// Utility: format timestamp
+function formatTimestamp(unix_ts, raw_ts) {
+  if (unix_ts) {
+    try {
+      const d = new Date(parseInt(unix_ts,10) * 1000);
+      return d.toLocaleString();
+    } catch(e) {}
+  }
+  return raw_ts || '';
+}
+
+// Utility: HTML escape
+function escapeHtml(unsafe) {
+  if (unsafe === null || unsafe === undefined) return '';
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// initial render for all three tabs
+['private','group','channel'].forEach(t => renderDialogueList(t));
+
+// wire search buttons
+document.getElementById('btnSearch').addEventListener('click', () => {
+  // re-render messages pane for currently active tab+selected dialogue
+  const activeTab = document.querySelector('.tab-pane.active');
+  if (!activeTab) return;
+  const type = activeTab.id;
+  const selected = document.getElementById(type + '-dialogues').querySelector('.list-group-item.active');
+  if (selected) {
+    renderMessages(type, selected.dataset.chatId);
+  }
+});
+
+document.getElementById('btnClear').addEventListener('click', () => {
+  document.getElementById('filterSender').value = '';
+  document.getElementById('filterText').value = '';
+  // re-render selected dialogue (if any)
+  const activeTab = document.querySelector('.tab-pane.active');
+  if (!activeTab) return;
+  const type = activeTab.id;
+  const selected = document.getElementById(type + '-dialogues').querySelector('.list-group-item.active');
+  if (selected) {
+    renderMessages(type, selected.dataset.chatId);
+  }
+});
+
+// When tab changes, automatically render that tab's dialogues
+document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(btn => {
+  btn.addEventListener('shown.bs.tab', (e) => {
+    const target = e.target.getAttribute('data-bs-target').replace('#','');
+    renderDialogueList(target);
+    // clear right pane
+    document.getElementById(target + '-messages').innerHTML = '<div class="no-results">Select a dialogue to view messages</div>';
+  });
+});
+</script>
+{% endblock %}

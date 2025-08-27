@@ -152,6 +152,76 @@ def find_same_identities(face_address, save_path, thresh, same_num):
                 shutil.copy2(pic, save_path + "/others")
 
 
+##############################3##############################3##############################3##############################3####################
+
+
+def compare_projects_identities(face_address1, face_address2, thresh):
+    """
+    Compare identities between two projects by checking if any of two images from an identity in project 1
+    match with any image in an identity folder in project 2.
+
+    Args:
+        face_address1 (str): Path to first project's identities folder.
+        face_address2 (str): Path to second project's identities folder.
+        thresh (float): Distance threshold for DeepFace matching.
+        same_num (int): Minimum number of matches to consider identities same (default 1).
+
+    Returns:
+        list of tuples: [(identity_path_proj1, identity_path_proj2), ...] matched identities.
+    """
+    matched_pairs = []
+
+    # List identity folders in both projects
+    identities1 = [os.path.join(face_address1, d) for d in os.listdir(face_address1)
+                   if os.path.isdir(os.path.join(face_address1, d))]
+    identities2 = [os.path.join(face_address2, d) for d in os.listdir(face_address2)
+                   if os.path.isdir(os.path.join(face_address2, d))]
+
+    for id1_path in identities1:
+        # Get up to 2 images from identity folder 1
+        images1 = [os.path.join(id1_path, f) for f in os.listdir(id1_path)
+                   if os.path.splitext(f)[-1].lower() in ['.jpg', '.png']]
+        if len(images1) == 0:
+            continue
+        images_to_test = images1[:2]  # pick first two images or less
+
+        for id2_path in identities2:
+            # We consider id2_path as DeepFace db folder
+
+            # For each image from id1_path, check if it matches id2_path
+            match_found = False
+            for img_path in images_to_test:
+                try:
+                    results = DeepFace.find(
+                        img_path=img_path,
+                        db_path=id2_path,
+                        detector_backend="yolov8",
+                        model_name="ArcFace",
+                        enforce_detection=False
+                    )
+                except Exception as e:
+                    # Skip if DeepFace fails on this image
+                    continue
+
+                # results is list of DataFrames (usually one DataFrame)
+                for df in results:
+                    for _, row in df.iterrows():
+                        if float(row['distance']) < float(thresh):
+                            match_found = True
+                            break
+                    if match_found:
+                        break
+                if match_found:
+                    break
+
+            if match_found:
+                matched_pairs.append((id1_path, id2_path))
+                # Once matched, no need to check other identities for this id1
+                break
+
+    return matched_pairs
+###########################################################################################################
+
 def start_face_process(img_address, face_address):
     face_extract(img_address, face_address)
     embd_save_address = face_address + "/embeddings.pkl"

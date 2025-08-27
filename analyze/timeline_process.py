@@ -4,6 +4,7 @@ from datetime import datetime
 import pytz
 from PIL import Image
 from scapy.all import rdpcap
+import csv
 
 def process_timeline(project_path):
     base_path = os.path.join(project_path, "processed_data", "timeline")
@@ -15,9 +16,10 @@ def process_timeline(project_path):
     sms_timeline = process_sms(os.path.join(project_path, "extract", "other", "important_databases", "mmssms.db"))
     calllog_timeline = process_calllogs(os.path.join(project_path, "extract", "other", "important_databases", "calllog.db"))
     media_timeline = process_media(os.path.join(project_path, "extract", "media", "sdcard"))
+    apps_timeline = process_apps(os.path.join(project_path, "processed_data", "apps"))
     
     # Combine all timelines
-    combined = contacts_timeline + calllog_timeline + media_timeline  + calendar_timeline + sms_timeline
+    combined = contacts_timeline + calllog_timeline + media_timeline  + calendar_timeline + sms_timeline + apps_timeline
     combined.sort(key=lambda x: x["timestamp"])
     
     # Save individual timelines
@@ -26,7 +28,18 @@ def process_timeline(project_path):
     save_timeline(calllog_timeline, os.path.join(base_path, "calllogs"))
     save_timeline(sms_timeline, os.path.join(base_path, "sms"))
     save_timeline(media_timeline, os.path.join(base_path, "media"))
+    save_timeline(apps_timeline, os.path.join(base_path, "apps"))
     save_timeline(combined, os.path.join(base_path, "combined"))
+
+def save_timeline(timeline, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
+    csv_path = os.path.join(output_dir, "timeline.csv")
+    
+    with open(csv_path, "w") as f:
+        f.write("timestamp,type,event,details\n")
+        for event in timeline:
+            f.write(f"{event['timestamp']},{event['type']},{event['event']},\"{event['details']}\"\n")
+
 
 def process_calendar(db_path):
     timeline = []
@@ -261,12 +274,58 @@ ORDER BY date DESC;
         print(f"Error processing SMS messages: {e}")
     return timeline
 
+##############################################
 
-def save_timeline(timeline, output_dir):
-    os.makedirs(output_dir, exist_ok=True)
-    csv_path = os.path.join(output_dir, "timeline.csv")
-    
-    with open(csv_path, "w") as f:
-        f.write("timestamp,type,event,details\n")
-        for event in timeline:
-            f.write(f"{event['timestamp']},{event['type']},{event['event']},\"{event['details']}\"\n")
+def process_apps(project_path):
+    """
+    Scan processed_data/apps/<app_dir> for CSV files, read rows and produce timeline events.
+    - type => 'applications'
+    - event => '<parent-directory-name>-event'
+    - details => include filename, relative path, and key=value pairs from the row (excluding timestamp)
+    """
+    timeline = []
+
+    # Walk only one level deep: each app directory directly under apps_root
+    for app_dir in sorted(os.listdir(project_path)):
+        app_dir_full = os.path.join(project_path, app_dir)
+        if not os.path.isdir(app_dir_full):
+            continue
+
+        # find CSV files inside this app_dir (non-recursive)
+        for fname in sorted(os.listdir(app_dir_full)):
+            if not fname.lower().endswith(".csv"):
+                continue
+            file_path = os.path.join(app_dir_full, fname)
+            rel_path = os.path.relpath(file_path, project_path)
+            parent_name = os.path.basename(app_dir_full) or app_dir  # directory name
+            event_name = f"{parent_name}-event"
+
+            try:
+                with open(file_path, newline='', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        ts = ""
+                        details = ""
+                        print("parent name", parent_name)
+                        if (parent_name == "org.telegram.messenger"):
+                            ts = row["timestamp_unix"]
+                            ts = int(ts)
+                            message = row["message"]
+                            if (message is None):
+                                print("xxxxxxxxxx   m is none")
+                            details = "dialogue: " + row["chat_name"] + " user: " + row["sender"] + " message: " + message
+                        
+                        print("ts: ", ts, " event: ", event_name, " details: ", details)
+                        timeline.append({
+                            "timestamp": ts,
+                            "type": "applications",
+                            "event": event_name,
+                            "details": details
+                        })
+            except Exception as e:
+                # keep processing other files
+                print(f"Error reading app CSV {file_path}: {e}")
+                continue
+
+    return timeline
+

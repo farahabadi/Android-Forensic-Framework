@@ -1,6 +1,10 @@
 import subprocess
 import os
 
+# Please Add your pckage name in list below seperated by ','
+app_modules = ["org.telegram.messenger"]
+
+
 global_project_name = ""
 
 def create_dirs():
@@ -51,3 +55,14 @@ def get_current_project_name():
 def set_current_project_name(name):
     global global_project_name
     global_project_name = name
+
+def is_app_modules(name):
+    global app_modules
+    if (name in app_modules):
+        return True
+    else:
+        return False
+
+def get_app_modules():
+    global app_modules
+    return app_modules

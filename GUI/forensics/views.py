@@ -7,12 +7,15 @@ import mimetypes
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..',)))
+from addresses import get_app_modules
 import main
+from util.image_utils import compare_projects_identities
 from .logic import parse_sqlite, parse_pcap
 import subprocess
 import csv
 import datetime
 import pytz
+import json
 
 def create_project(request):
     """Create a new project."""
@@ -163,6 +166,11 @@ def timeline_view(request, project_name):
 
 def compare_view(request, project_name1, project_name2, type):
     print("Comparing:", project_name1, project_name2, type)
+    project1_path = os.path.join(settings.PROJECTS_DIR, project_name1)
+    project2_path = os.path.join(settings.PROJECTS_DIR, project_name2)
+    p1_identity_path = os.path.join(project1_path, "processed_data", "faces", "identities")
+    p2_identity_path = os.path.join(project2_path, "processed_data", "faces", "identities")
+
     if (type == "timeline"):
         timeline_data1 = read_timeline(project_name1)
         timeline_data2 = read_timeline(project_name2)
@@ -173,7 +181,38 @@ def compare_view(request, project_name1, project_name2, type):
             'timeline_data2': timeline_data2
         })
     elif (type == "persons"):
-        print("s")
+        matched_identities = compare_projects_identities(p1_identity_path, p2_identity_path, thresh=0.5)
+
+        def get_identity_images(identity_path):
+            images = [f for f in os.listdir(identity_path)
+                      if os.path.splitext(f)[-1].lower() in ['.jpg', '.png']]
+            images_full = [os.path.join(identity_path, img) for img in images]
+            return images, images_full
+
+        matched_data = []
+        for id1_path, id2_path in matched_identities:
+            id1_name = os.path.basename(id1_path)
+            id2_name = os.path.basename(id2_path)
+            id1_images, id1_images_full = get_identity_images(id1_path)
+            id2_images, id2_images_full = get_identity_images(id2_path)
+
+            # Zip images and full paths for each identity
+            id1_imgs_zipped = list(zip(id1_images, id1_images_full))
+            id2_imgs_zipped = list(zip(id2_images, id2_images_full))
+
+            matched_data.append({
+                'id1_name': id1_name,
+                'id2_name': id2_name,
+                'id1_imgs_zipped': id1_imgs_zipped,
+                'id2_imgs_zipped': id2_imgs_zipped,
+            })
+
+        return render(request, 'compare_persons.html', {
+            'project_name1': project_name1,
+            'project_name2': project_name2,
+            'matched_data': matched_data,
+        })
+        
     else:
         raise Http404("Comparison type not supported")
 
@@ -201,6 +240,95 @@ def read_timeline(project_name):
     # Sort by timestamp descending
     timeline_data.sort(key=lambda x: x['timestamp'] or datetime.datetime.min, reverse=True)
     return timeline_data
+
+
+#############################################################################################################################################
+
+def modules_view(request, project_name):
+    list = get_app_modules
+    print(list, project_name)
+    return render(request, 'modules.html', {
+        'project_name': project_name,
+        'modules': list
+    })
+
+# please add your view method here to implement
+def telegram_view(request, project_name):
+    """
+    Shows message dialogues grouped into Private / Group / Channel tabs.
+    Reads processed timeline CSV at:
+      <PROJECTS_DIR>/<project_name>/processed_data/timeline/combined/timeline.csv
+    """
+    timeline_path = os.path.join(
+        settings.PROJECTS_DIR,
+        project_name,
+        "processed_data",
+        "apps",
+        "org.telegram.messenger",
+        "timeline.csv"
+    )
+
+    if not os.path.exists(timeline_path):
+        raise Http404("Timeline data not processed yet")
+
+    messages = []
+    with open(timeline_path, newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # normalize fields; timeline may have timestamp_unix or timestamp
+            ts_unix = None
+            try:
+                if row.get('timestamp_unix'):
+                    ts_unix = int(float(row['timestamp_unix']))
+                elif row.get('timestamp'):
+                    # try to parse 'YYYY-MM-DD HH:MM:SS' (fallback)
+                    try:
+                        dt = datetime.datetime.fromisoformat(row['timestamp'])
+                        ts_unix = int(dt.replace(tzinfo=datetime.timezone.utc).timestamp())
+                    except Exception:
+                        ts_unix = None
+            except Exception:
+                ts_unix = None
+
+            messages.append({
+                'mid': row.get('mid'),
+                'timestamp_unix': ts_unix,
+                'timestamp': row.get('timestamp') or '',
+                'sender': row.get('sender') or '',
+                'chat_id': row.get('chat_id') or row.get('peer_telegram_id_in_blob') or row.get('peer_phone_in_blob') or '',
+                'chat_name': row.get('chat_name') or 'Unknown',
+                'chat_type': (row.get('chat_type') or 'private').lower(),
+                'message': row.get('message') or ''
+            })
+
+    # Group into dialogues by chat_type -> chat_id
+    dialogues = {}
+    for m in messages:
+        ctype = (m.get('chat_type') or 'private').lower()
+        dialogues.setdefault(ctype, {})
+        cid = str(m.get('chat_id') or 'unknown')
+        if cid not in dialogues[ctype]:
+            dialogues[ctype][cid] = {
+                'chat_id': cid,
+                'chat_name': m.get('chat_name') or cid,
+                'messages': []
+            }
+        dialogues[ctype][cid]['messages'].append(m)
+
+    # Sort messages chronologically (ascending) inside each dialogue
+    for ctype, chats in dialogues.items():
+        for cid, info in chats.items():
+            info['messages'].sort(key=lambda x: x['timestamp_unix'] or 0)
+
+    # Convert map to lists for easier template/JS usage
+    dialogues_json = {ctype: list(chats.values()) for ctype, chats in dialogues.items()}
+
+    context = {
+        'project_name': project_name,
+        # embed JSON for client-side rendering (ensure safe/utf-8)
+        'dialogues_json': json.dumps(dialogues_json, ensure_ascii=False)
+    }
+    return render(request, 'telegram.html', context)
 
 #############################################################################################################################################
 

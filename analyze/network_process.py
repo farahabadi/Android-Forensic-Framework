@@ -174,7 +174,6 @@ class PcapAnalyzer:
     
     def analyze_pcap(self):
         """Main analysis function"""
-        print(f"Analyzing PCAP file: {self.pcap_file}")
         
         # Load PCAP file
         try:
@@ -183,12 +182,9 @@ class PcapAnalyzer:
             print(f"Error reading PCAP file: {e}")
             return
         
-        print(f"Loaded {len(packets)} packets for analysis")
         
         # Analyze each packet
         for i, packet in enumerate(packets):
-            if i % 1000 == 0:
-                print(f"Processed {i} packets...")
                 
             if scapy.IP in packet:
                 src_ip = packet[scapy.IP].src
@@ -234,7 +230,6 @@ class PcapAnalyzer:
                         # Extract HTTP info (if present)
                         self.extract_http_info(payload_text, src_ip, dst_ip, timestamp, dst_port)
         
-        print("Analysis complete!")
         self.save_results()
         self.print_summary()
     
@@ -244,7 +239,6 @@ class PcapAnalyzer:
         with open(output_file, 'w') as f:
             json.dump(self.findings, f, indent=4)
         
-        print(f"Results saved to: {output_file}")
         
         # Create individual files for each category
         for category in self.findings:
