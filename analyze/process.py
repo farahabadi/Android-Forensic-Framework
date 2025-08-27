@@ -6,7 +6,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',)))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'util')))
 from addresses import get_address, is_app_modules
 from util import image_utils
-from .network_process import start
 from .timeline_process import process_timeline
 from .modules import *
 import importlib
@@ -22,13 +21,13 @@ def start_process(address, out, whole, app_name):
     project_address = get_address("project_dir")
 
     # organise by extension
-    # create_extensions()
-    # extension_org(address, out)
+    create_extensions()
+    extension_org(address, out)
 
     #face analysis
     img_address = get_address("project_process_extension_image")
     save_address = get_address("project_process_face")
-    # process_images(img_address, save_address)
+    process_images(img_address, save_address)
 
     # apps data analysis
     app_address = get_address("project_extract_app")
@@ -38,13 +37,6 @@ def start_process(address, out, whole, app_name):
         app_save_address = app_save_address + "/" + app
         if (whole):
             process_app_data(app, app_address, app_save_address)
-
-    # network packets analysis
-    pcap_address = get_address("project_extract_network")
-    network_output_dir = get_address("project_process_network")
-    if (whole):
-        print("analyze network data")
-        process_network_data(pcap_address, network_output_dir)
 
     # timeline analysis
     process_timeline(project_address)
@@ -62,8 +54,6 @@ def process_app_data(app_name, app_address, save_address):
         module = importlib.import_module(module_name)
         module.start(app_address, save_address)
 
-def process_network_data(pcap_address, out_dir):
-    start(pcap_address, out_dir)
 
 
 
