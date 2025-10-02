@@ -86,6 +86,9 @@ def crop_face_and_save(db, save_address, limit_size):
             if (os.path.getsize(os.path.join(db, l)) < limit_size):
                 continue
             img = cv2.imread(os.path.join(db, l))
+            if (img is None):
+                print("this image is none: " +  os.path.join(db, l))
+                continue
             faces = extract_faces(img, backend=backends[i])
             if (faces is None):
                 print(l, "  no face found")
@@ -224,11 +227,8 @@ def compare_projects_identities(face_address1, face_address2, thresh):
 
 def start_face_process(img_address, face_address):
     face_extract(img_address, face_address)
-    embd_save_address = face_address + "/embeddings.pkl"
-    embeddings = extract_embeddings(face_address, model_name='ArcFace', save_path=embd_save_address)
-    identities = cluster_faces_by_identity(embeddings, eps=0.5, min_samples=2)
-    output_dir = face_address + "/identities"
-    save_identities(identities, output_dir)
+    identity_address = face_address + "/identities"
+    find_same_identities(face_address, identity_address, thresh=0.5, same_num=2)
     
 if __name__ == '__main__':
     # face_extract("projects/proj2/processed_data/extension/image", "projects/proj2/processed_data/faces")

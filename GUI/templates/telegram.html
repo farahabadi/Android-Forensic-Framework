@@ -13,6 +13,12 @@
 .search-row { gap: 8px; display:flex; align-items:center; }
 .no-results { color:#777; padding: 18px; text-align:center; }
 .small-muted { font-size:0.85rem; color:#6c757d; }
+.location-label { font-weight: 600; color: #0d6efd; } /* blue */
+.media-badge { display:inline-block; padding: 2px 8px; border-radius: 12px; font-size:0.78rem; margin-left:6px; background:#f1f3f5; }
+.media-link { display:block; margin-top:6px; word-break: break-all; }
+.msg-meta { font-size:0.85rem; color:#495057; }
+.sender-me { color: #0b5ed7; }
+.sender-other { color: #212529; }
 </style>
 {% endblock %}
 
@@ -23,8 +29,8 @@
   </div>
 </div>
 
-<div class="row">
-  <div class="col-12 mb-3">
+<div class="row mb-3">
+  <div class="col-12">
     <div class="input-group">
       <input id="filterSender" type="text" class="form-control" placeholder="Filter by sender (exact or partial)">
       <input id="filterText" type="text" class="form-control" placeholder="Filter by message text">
@@ -48,7 +54,7 @@
   </ul>
 
   <div class="tab-content mt-3">
-    {% comment %} Each tab contains a two-column layout: left = dialogues, right = messages for selected dialogue {% endcomment %}
+    <!-- Private -->
     <div class="tab-pane fade show active" id="private" role="tabpanel">
       <div class="row">
         <div class="col-md-4">
@@ -62,6 +68,7 @@
       </div>
     </div>
 
+    <!-- Group -->
     <div class="tab-pane fade" id="group" role="tabpanel">
       <div class="row">
         <div class="col-md-4">
@@ -75,6 +82,7 @@
       </div>
     </div>
 
+    <!-- Channel -->
     <div class="tab-pane fade" id="channel" role="tabpanel">
       <div class="row">
         <div class="col-md-4">
@@ -97,8 +105,8 @@
 <script>
 /*
   dialogues_json is provided by the view as a JSON string.
-  Structure:
-    { "private": [ { chat_id, chat_name, messages: [{mid,timestamp_unix,timestamp,sender,message}] }, ... ],
+  Structure (expected):
+    { "private": [ { chat_id, chat_name, messages: [{mid,timestamp_unix,timestamp,sender,message, file_type, file_path, latitude, longitude}] }, ... ],
       "group": [...], "channel": [...] }
 */
 const dialogues = JSON.parse('{{ dialogues_json|escapejs }}');
@@ -126,7 +134,7 @@ function renderDialogueList(type) {
     el.innerHTML = `
       <div class="ms-2 me-auto">
         <div class="fw-semibold">${escapeHtml(d.chat_name)}</div>
-        <div class="small-muted">${d.chat_id}</div>
+        <div class="small-muted">${escapeHtml(String(d.chat_id))}</div>
       </div>
       <span class="badge bg-secondary rounded-pill chat-badge">${badgeCount}</span>
     `;
@@ -154,7 +162,7 @@ function renderMessages(type, chatId) {
   // show header
   const header = document.createElement('div');
   header.className = 'mb-2';
-  header.innerHTML = `<h5>${escapeHtml(d.chat_name)} <small class="small-muted">(${d.chat_id})</small></h5>`;
+  header.innerHTML = `<h5>${escapeHtml(d.chat_name)} <small class="small-muted">(${escapeHtml(String(d.chat_id))})</small></h5>`;
   area.appendChild(header);
 
   const listEl = document.createElement('div');
@@ -168,7 +176,9 @@ function renderMessages(type, chatId) {
       ok = ok && (String(m.sender||'').toLowerCase().indexOf(filterSender) !== -1);
     }
     if (filterText) {
-      ok = ok && (String(m.message||'').toLowerCase().indexOf(filterText) !== -1);
+      ok = ok && (String(m.message||'').toLowerCase().indexOf(filterText) !== -1
+                  || (m.file_path||'').toLowerCase().indexOf(filterText) !== -1
+                  || (m.file_type||'').toLowerCase().indexOf(filterText) !== -1);
     }
     return ok;
   });
@@ -182,13 +192,63 @@ function renderMessages(type, chatId) {
   msgs.forEach(m => {
     const item = document.createElement('div');
     item.className = 'message-item';
+
     const tsDisplay = formatTimestamp(m.timestamp_unix, m.timestamp);
+
+    // Compose message body: text, then media (if exists), then location (if exists)
+    let contentParts = [];
+
+    // Message text (if any)
+    if (m.message && String(m.message).trim() !== '') {
+      // If message was generated as "Location: lat, lon" we will still include it,
+      // but location will also be displayed as map link below.
+      contentParts.push(`<div>${escapeHtml(m.message)}</div>`);
+    }
+
+    // Media file (if present)
+    if (m.file_path || m.file_type) {
+      const filePath = m.file_path || '';
+      const fileType = m.file_type || 'file';
+      // display a small badge and a clickable link (if path exists)
+      const badge = `<span class="media-badge">${escapeHtml(String(fileType).toUpperCase())}</span>`;
+      const linkHtml = filePath
+        ? `<a class="media-link" target="_blank" rel="noopener noreferrer" href="${escapeHtmlAttr(filePath)}">${escapeHtml(filePath)}</a>`
+        : `<div class="media-link">${escapeHtml(fileType)} (no path)</div>`;
+      contentParts.push(`<div>${badge}${linkHtml}</div>`);
+    }
+
+    // Location (latitude / longitude) — prefer explicit fields if present
+    const lat = (m.latitude !== undefined && m.latitude !== null) ? m.latitude : null;
+    const lon = (m.longitude !== undefined && m.longitude !== null) ? m.longitude : null;
+    // Also parse if message contains "Location: " text and lat/lon not provided
+    let locLat = lat, locLon = lon;
+    if ((locLat === null || locLat === undefined) && m.message) {
+      const locMatch = String(m.message).match(/Location:\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/i);
+      if (locMatch) {
+        locLat = locMatch[1];
+        locLon = locMatch[2];
+      }
+    }
+    if (locLat !== null && locLon !== null && locLat !== undefined && locLon !== undefined && String(locLat) !== '' && String(locLon) !== '') {
+      const gmap = `https://www.google.com/maps?q=${encodeURIComponent(String(locLat))},${encodeURIComponent(String(locLon))}`;
+      const locHtml = `<div style="margin-top:6px;"><span class="location-label">📍 Location:</span> <a target="_blank" rel="noopener noreferrer" href="${gmap}">${escapeHtml(String(locLat))}, ${escapeHtml(String(locLon))}</a></div>`;
+      contentParts.push(locHtml);
+    }
+
+    // If nothing found at all (no text, no media, no location) show placeholder
+    if (contentParts.length === 0) {
+      contentParts.push('<div class="small-muted">[no text or media]</div>');
+    }
+
+    // Sender name style (me / other)
+    const senderCss = (String(m.sender||'').toLowerCase() === 'me') ? 'sender-me' : 'sender-other';
+
     item.innerHTML = `
       <div class="d-flex justify-content-between">
-        <div><strong>${escapeHtml(m.sender || 'unknown')}</strong></div>
+        <div><strong class="${senderCss}">${escapeHtml(m.sender || 'unknown')}</strong></div>
         <div class="small-muted">${escapeHtml(tsDisplay)}</div>
       </div>
-      <div class="mt-1">${escapeHtml(m.message || '')}</div>
+      <div class="mt-1">${contentParts.join('')}</div>
     `;
     listEl.appendChild(item);
   });
@@ -209,7 +269,7 @@ function formatTimestamp(unix_ts, raw_ts) {
   return raw_ts || '';
 }
 
-// Utility: HTML escape
+// Utility: HTML escape for text nodes
 function escapeHtml(unsafe) {
   if (unsafe === null || unsafe === undefined) return '';
   return String(unsafe)
@@ -218,6 +278,17 @@ function escapeHtml(unsafe) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+// Utility: escape for attribute (href) - minimal but effective
+function escapeHtmlAttr(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 // initial render for all three tabs

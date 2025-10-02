@@ -2,10 +2,11 @@ import subprocess
 import os
 
 # Please Add your pckage name in list below seperated by ','
-app_modules = ["org.telegram.messenger"]
+app_modules = ["org.telegram.messenger", "org.telegram.messenger.web"]
 
 
 global_project_name = ""
+global_project_desc = ""
 
 def create_dirs():
     for item in ["project_dir", "project_extract", "project_extract_media", "project_extract_media", "project_extract_app", "project_extract_other",
@@ -55,6 +56,13 @@ def get_current_project_name():
 def set_current_project_name(name):
     global global_project_name
     global_project_name = name
+
+def get_current_project_desc():
+    return global_project_desc
+
+def set_current_project_desc(desc):
+    global global_project_desc
+    global_project_desc = desc
 
 def is_app_modules(name):
     global app_modules

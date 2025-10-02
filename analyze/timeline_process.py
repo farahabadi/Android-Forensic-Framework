@@ -307,13 +307,18 @@ def process_apps(project_path):
                         ts = ""
                         details = ""
                         print("parent name", parent_name)
-                        if (parent_name == "org.telegram.messenger"):
+                        if (parent_name == "org.telegram.messenger" or parent_name == "org.telegram.messenger.web"):
                             ts = row["timestamp_unix"]
-                            ts = int(ts)
+                            print("ts:  " , ts)
+                            if ts is not '':
+                                ts = int(float(ts))
+                            else:
+                                ts = 0
                             message = row["message"]
                             if (message is None):
                                 print("xxxxxxxxxx   m is none")
                             details = "dialogue: " + row["chat_name"] + " user: " + row["sender"] + " message: " + message
+                            
                         
                         print("ts: ", ts, " event: ", event_name, " details: ", details)
                         timeline.append({

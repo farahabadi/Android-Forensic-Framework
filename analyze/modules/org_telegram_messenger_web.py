@@ -4,6 +4,14 @@ import sqlite3
 from datetime import datetime
 import pandas as pd
 import json
+import struct
+
+
+extensions = {
+    'video': ['.mp4', '.avi', '.mkv', '.mov', '.flv', '.wmv', '.webm'],
+    'audio': ['.mp3', '.wav', '.aac', '.flac', '.ogg', '.m4a', '.wma'],
+    'image': ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp', '.svg']
+}
 
 # -------------------------
 # Helpers for blob parsing
@@ -91,6 +99,17 @@ def _build_user_map(conn):
         pass
     return user_map
 
+def _build_media_path_map(conn):
+    cur2 = conn.cursor()
+    media_path_map = {}
+    try:
+        cur2.execute("SELECT path, dialog_id, message_id FROM paths_by_dialog_id")
+        for path, dialog_id, message_id in cur2.fetchall():
+            media_path_map[(dialog_id, message_id)] = path
+    except Exception:
+        pass
+    return media_path_map
+
 def _build_chat_map(conn):
     cur = conn.cursor()
     chat_map = {}
@@ -129,6 +148,32 @@ def _detect_chat_type(uid, chat_map):
     except Exception:
         return 'unknown'
 
+def extract_coords(hex_str):
+    data = bytes.fromhex(hex_str)
+    results = []
+    for offset in range(0, len(data) - 7):
+        try:
+            val = struct.unpack('<d', data[offset:offset+8])[0]
+            # Latitude (-90 to +90), Longitude (-180 to +180)
+            if -90 <= val <= 90 or -180 <= val <= 180:
+                results.append((offset, val))
+        except Exception:
+            pass
+    return results
+
+def getlatlong(coords):
+    lat=0
+    long=0
+    for offset, value in coords:
+        if (offset == 60):
+            long = value
+        if (offset == 68):
+            lat = value
+    return (lat, long)
+
+def checkpointsize(num):
+    decimals = str(num).split(".")[1].rstrip("0")  # remove trailing zeros
+    return len(decimals) <= 8
 # -------------------------
 # Main
 # -------------------------
@@ -153,6 +198,15 @@ def start(data_address, save_address):
     user_map = _build_user_map(conn)
     chat_map = _build_chat_map(conn)
 
+    # db of media address
+    pathdb =  os.path.join(data_address, "files", "file_to_path.db")
+    if not pathdb:
+        raise FileNotFoundError(f"Path Database not found at {pathdb}")
+
+    conn2 = sqlite3.connect(pathdb)
+    media_path_map = _build_media_path_map(conn2)
+
+
     # Ensure messages_v2 exists
     cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='messages_v2'")
     if not cur.fetchall():
@@ -160,11 +214,11 @@ def start(data_address, save_address):
         raise RuntimeError("messages_v2 table not found. Available: " + ", ".join(names))
 
     # Query all messages (ordered newest first)
-    cur.execute("SELECT mid, uid, date, out, data FROM messages_v2 ORDER BY date DESC")
+    cur.execute("SELECT mid, uid, date, out, data, is_channel FROM messages_v2 ORDER BY date DESC")
     rows = cur.fetchall()
 
     records = []
-    for mid, uid, date_int, out_flag, data_blob in rows:
+    for mid, uid, date_int, out_flag, data_blob, is_channel in rows:
         # Parse timestamp
         ts = None; ts_unix = None
         if date_int:
@@ -190,11 +244,13 @@ def start(data_address, save_address):
         if out_flag is not None and int(out_flag) == 1:
             sender = 'me'
         else:
-            if uid and int(uid) > 0:
+            if (is_channel is not 0):
+                sender = "Channel Admin"
+            elif uid and int(uid) > 0:
                 um = user_map.get(int(uid), {})
                 sender = um.get('username_or_link') or um.get('name') or str(uid)
             else:
-                sender = "group_member"
+                sender = "Group Member"
 
         # Attempt to extract text message from blob
         message_text = _guess_message_text_from_blob(data_blob) if data_blob else None
@@ -211,40 +267,32 @@ def start(data_address, save_address):
                 text = data_blob.decode('utf-8', errors='ignore')
             except Exception:
                 text = ''
-            # If we find a file path ("/storage/" or "/cache/Telegram/Telegram Images")
-            path_match = re.search(r'(/storage/emulated/0/[^"]+)', text)
-            if path_match:
-                file_path = path_match.group(1)
-                # Infer file type from extension if present
-                ext = os.path.splitext(file_path)[1].lower()
-                if ext:
-                    file_type = ext.lstrip('.')
-            # Detect media type indicators in binary blob (JPEG, PNG, MP4, OGG headers, etc.)
-            if file_type is None:
-                if data_blob.startswith(b'\xFF\xD8\xFF'):  # JPEG magic
-                    file_type = 'jpg'
-                elif data_blob.startswith(b'\x89PNG'):  # PNG magic
-                    file_type = 'png'
-                elif data_blob[0:4] == b'\x00\x00\x00\x1C' and b'ftyp' in data_blob[:20]:
-                    file_type = 'mp4'
-                elif b'OggS' in data_blob[0:4]:
-                    file_type = 'ogg'
-            # Detect geo-coordinates: search for double values that look like lat/lon
-            geo_match = re.search(rb'(-?\d+\.\d+),\s*(-?\d+\.\d+)', text)
-            if geo_match:
-                latitude = float(geo_match.group(1))
-                longitude = float(geo_match.group(2))
+            # media messages
+            print("check media: ", "uid,mid: ", (uid, mid), "  media_path: ", media_path_map)
+            if ((uid, mid) in media_path_map):
+                print("media found!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                file = media_path_map[(uid, mid)]
+                print(file)
+                extension = file.split('.')[-1]
+                if (extension in extensions['video']):
+                    message_text = "Video file: " + file
+                    file_type = "video"
+                elif (extension in extensions['image']):
+                    message_text = "Image file: " + file
+                    file_type = "Image"
+                elif (extension in extensions['audio']):
+                    message_text = "Audio file: " + file
+                    file_type = "Audio"
+                else:
+                    message_text = "Media File: " + file
+                    file_type = "Media"
             else:
-                # Some Telegram blobs store geo as binary doubles; try minimal parse (not robust)
-                try:
-                    # Unpack double latitude and longitude if known offset (for illustration only)
-                    import struct
-                    # e.g., if we know offset, unpack: (requires reverse-engineering TDS format)
-                    # coords = struct.unpack('<dd', data_blob[offset:offset+16])
-                    # latitude, longitude = coords[0], coords[1]
-                    pass
-                except Exception:
-                    pass
+                # check for location
+                if (len(data_blob) == 88):
+                    #possible location
+                    (lat, long) = getlatlong(extract_coords(data_blob.hex()))
+                    if (lat <= 90 and lat >= -90) and (long <= 180 and long >= -180) and checkpointsize(lat) and checkpointsize(long):
+                        message_text = "Location :  " + str(lat) + " , " + str(long)
 
         # Include even if text is empty (so attachments are included)
         if not message_text:
@@ -270,6 +318,7 @@ def start(data_address, save_address):
         })
 
     conn.close()
+    conn2.close()
     # Save to CSV
     os.makedirs(save_address, exist_ok=True)
     out_path = os.path.join(save_address, "timeline.csv")

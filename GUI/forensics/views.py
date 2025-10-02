@@ -7,7 +7,7 @@ import mimetypes
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..',)))
-from addresses import get_app_modules
+from addresses import get_app_modules, set_current_project_desc, get_current_project_desc
 import main
 from util.image_utils import compare_projects_identities
 from .logic import parse_sqlite, parse_pcap
@@ -16,6 +16,11 @@ import csv
 import datetime
 import pytz
 import json
+from django.utils.html import escape
+import datetime, json
+import re
+
+imgs = ["jpg", "png","jpeg"]
 
 def create_project(request):
     """Create a new project."""
@@ -23,6 +28,8 @@ def create_project(request):
         form = ProjectForm(request.POST)
         if form.is_valid():
             project_name = form.cleaned_data['name']
+            desc = form.cleaned_data['description']
+            set_current_project_desc(desc)
 
             # Ensure project directory exists
             project_path = os.path.join(settings.PROJECTS_DIR, project_name)
@@ -105,13 +112,10 @@ def add_application(request, project_name):
     if request.method == 'POST':
         form = ApplicationForm(request.POST, package_choices=package_choices)
         if form.is_valid():
-            # Changed from 'package_name' to 'package_names'
             package_names = form.cleaned_data['package_names']
             is_rooted = form.cleaned_data['is_rooted']
             print(package_names)
 
-            # You might need to adjust this line based on what main.start_project expects
-            # If it expects a single package name, you may need to handle the list differently
             res = main.start_project(project_name, is_rooted, package_names)
 
             return redirect(f"http://127.0.0.1:8000/project/{project_name}/browse")
@@ -183,28 +187,27 @@ def compare_view(request, project_name1, project_name2, type):
     elif (type == "persons"):
         matched_identities = compare_projects_identities(p1_identity_path, p2_identity_path, thresh=0.5)
 
-        def get_identity_images(identity_path):
-            images = [f for f in os.listdir(identity_path)
-                      if os.path.splitext(f)[-1].lower() in ['.jpg', '.png']]
-            images_full = [os.path.join(identity_path, img) for img in images]
-            return images, images_full
-
         matched_data = []
         for id1_path, id2_path in matched_identities:
+            files1 = [os.path.join(id1_path, f) for f in os.listdir(id1_path) if f.lower().rsplit('.', 1)[-1] in imgs]
+            first_file = files1[0]
+
+            files2 = [os.path.join(id2_path, f) for f in os.listdir(id2_path) if f.lower().rsplit('.', 1)[-1] in imgs]
+            second_file = files2[0]
+
+            url1 = settings.MEDIA_URL + os.path.relpath(first_file, settings.MEDIA_ROOT)
+            url2 = settings.MEDIA_URL + os.path.relpath(second_file, settings.MEDIA_ROOT)
+
+            print("first: ", first_file, "second: ", second_file)
             id1_name = os.path.basename(id1_path)
             id2_name = os.path.basename(id2_path)
-            id1_images, id1_images_full = get_identity_images(id1_path)
-            id2_images, id2_images_full = get_identity_images(id2_path)
 
-            # Zip images and full paths for each identity
-            id1_imgs_zipped = list(zip(id1_images, id1_images_full))
-            id2_imgs_zipped = list(zip(id2_images, id2_images_full))
 
             matched_data.append({
                 'id1_name': id1_name,
                 'id2_name': id2_name,
-                'id1_imgs_zipped': id1_imgs_zipped,
-                'id2_imgs_zipped': id2_imgs_zipped,
+                'id1_imgs_zipped': url1,
+                'id2_imgs_zipped': url2,
             })
 
         return render(request, 'compare_persons.html', {
@@ -245,19 +248,19 @@ def read_timeline(project_name):
 #############################################################################################################################################
 
 def modules_view(request, project_name):
-    list = get_app_modules
-    print(list, project_name)
+    list = get_app_modules()
+    print(type(list), list, project_name) 
     return render(request, 'modules.html', {
         'project_name': project_name,
         'modules': list
     })
 
+#############################################################################################################################################
 # please add your view method here to implement
 def telegram_view(request, project_name):
     """
     Shows message dialogues grouped into Private / Group / Channel tabs.
-    Reads processed timeline CSV at:
-      <PROJECTS_DIR>/<project_name>/processed_data/timeline/combined/timeline.csv
+    Reads processed timeline CSV with extra fields for media/location.
     """
     timeline_path = os.path.join(
         settings.PROJECTS_DIR,
@@ -267,46 +270,70 @@ def telegram_view(request, project_name):
         "org.telegram.messenger",
         "timeline.csv"
     )
-
+    timeline_path2 = os.path.join(
+        settings.PROJECTS_DIR,
+        project_name,
+        "processed_data",
+        "apps",
+        "org.telegram.messenger.web",
+        "timeline.csv"
+    )
     if not os.path.exists(timeline_path):
-        raise Http404("Timeline data not processed yet")
+        if not os.path.exists(timeline_path2):
+            raise Http404("Timeline data not processed yet")
+        else:
+            timeline_path = timeline_path2
 
     messages = []
     with open(timeline_path, newline='', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            # normalize fields; timeline may have timestamp_unix or timestamp
+            # Normalize timestamp (as before)
             ts_unix = None
             try:
                 if row.get('timestamp_unix'):
                     ts_unix = int(float(row['timestamp_unix']))
                 elif row.get('timestamp'):
-                    # try to parse 'YYYY-MM-DD HH:MM:SS' (fallback)
-                    try:
-                        dt = datetime.datetime.fromisoformat(row['timestamp'])
-                        ts_unix = int(dt.replace(tzinfo=datetime.timezone.utc).timestamp())
-                    except Exception:
-                        ts_unix = None
+                    dt = datetime.datetime.fromisoformat(row['timestamp'])
+                    ts_unix = int(dt.replace(tzinfo=datetime.timezone.utc).timestamp())
             except Exception:
                 ts_unix = None
+
+            sender = row.get('sender') or ''
+            chat_name = row.get('chat_name') or ''
+            # Clean up names (e.g. remove extra junk, split on semicolon)
+            if ';' in chat_name:
+                chat_name = chat_name.split(';')[0]
+            chat_name = re.sub(r'[^A-Za-z0-9\u0600-\u06FF\s]', '', chat_name).strip()
+            sender = re.sub(r'[^A-Za-z0-9\u0600-\u06FF@.\s]', '', sender).strip()
+
+            # Combine message or location
+            message_text = row.get('message') or ''
+            lat = row.get('latitude') or None
+            lon = row.get('longitude') or None
+
+            # If latitude/longitude present, override message_text for display
+            if lat and lon:
+                # Format as "Location: lat, lon"
+                message_text = f"Location: {lat}, {lon}"
 
             messages.append({
                 'mid': row.get('mid'),
                 'timestamp_unix': ts_unix,
                 'timestamp': row.get('timestamp') or '',
-                'sender': row.get('sender') or '',
-                'chat_id': row.get('chat_id') or row.get('peer_telegram_id_in_blob') or row.get('peer_phone_in_blob') or '',
-                'chat_name': row.get('chat_name') or 'Unknown',
+                'sender': sender,
+                'chat_id': row.get('chat_id') or '',
+                'chat_name': chat_name or 'Unknown',
                 'chat_type': (row.get('chat_type') or 'private').lower(),
-                'message': row.get('message') or ''
+                'message': message_text or ''
             })
 
-    # Group into dialogues by chat_type -> chat_id
+    # (Grouping and sorting logic as before)
     dialogues = {}
     for m in messages:
         ctype = (m.get('chat_type') or 'private').lower()
-        dialogues.setdefault(ctype, {})
         cid = str(m.get('chat_id') or 'unknown')
+        dialogues.setdefault(ctype, {})
         if cid not in dialogues[ctype]:
             dialogues[ctype][cid] = {
                 'chat_id': cid,
@@ -314,22 +341,19 @@ def telegram_view(request, project_name):
                 'messages': []
             }
         dialogues[ctype][cid]['messages'].append(m)
-
-    # Sort messages chronologically (ascending) inside each dialogue
+    # Sort each dialogue's messages by timestamp
     for ctype, chats in dialogues.items():
         for cid, info in chats.items():
             info['messages'].sort(key=lambda x: x['timestamp_unix'] or 0)
-
-    # Convert map to lists for easier template/JS usage
     dialogues_json = {ctype: list(chats.values()) for ctype, chats in dialogues.items()}
 
     context = {
         'project_name': project_name,
-        # embed JSON for client-side rendering (ensure safe/utf-8)
         'dialogues_json': json.dumps(dialogues_json, ensure_ascii=False)
     }
     return render(request, 'telegram.html', context)
 
+#############################################################################################################################################
 #############################################################################################################################################
 
 def safe_join(base, *paths):
@@ -349,6 +373,7 @@ def get_breadcrumbs(subpath):
     return crumbs
 
 def browse_project(request, project_name, subpath=""):
+    desc = get_current_project_desc()
     base_path = os.path.join('projects', project_name)
     try:
         full_path = safe_join(base_path, subpath)
@@ -389,6 +414,7 @@ def browse_project(request, project_name, subpath=""):
         "path": subpath.split('/') if subpath else [],
         "breadcrumbs": breadcrumbs,
         "items": items,
+        "desc": desc,
     }
     return render(request, "browse.html", context)
 

@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+<h3 class="mb-4">{{project}}</h3>
+<h5 style="color: rgb(48, 82, 52);" class="mb-4">description: {{desc}}</h3>
+<hr>
+
 {% block content %}
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb mt-3">
@@ -13,6 +17,7 @@
         {% endfor %}
     </ol>
 </nav>
+
 
 <h3 class="mb-4">{{ path|join:"/" }}</h3>
 

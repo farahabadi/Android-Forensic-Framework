@@ -51,6 +51,7 @@ def process_images(img_address, save_address):
 def process_app_data(app_name, app_address, save_address):
     if is_app_modules(app_name):
         module_name = "analyze.modules." + app_name.replace(".", "_")
+        print("process module: ", module_name)
         module = importlib.import_module(module_name)
         module.start(app_address, save_address)
 

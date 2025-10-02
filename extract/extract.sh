@@ -68,7 +68,10 @@ else
     adb pull -a /sdcard/data_tmp/important_databases $address/extract/other
     adb shell su -c rm -rf  /sdcard/data_tmp
 
-    adb pull -a /sdcard $address/extract/media
+    if [ -d $address/extract/media/sdcard ]
+    then
+        adb pull -a /sdcard $address/extract/media
+    fi
 fi
 
         

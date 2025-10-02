@@ -14,25 +14,29 @@
       <div class="card-body">
         <div class="row">
           <!-- Left identity -->
-          <div class="col-md-6">
-            <h6 class="text-center mb-3">Project 1 Sample</h6>
-            <img src="{{ pair.id1_imgs_zipped.0.1|urlize }}" alt="Sample Image" class="img-fluid rounded mx-auto d-block mb-3 main-image" id="main-img-left-{{ forloop.counter }}" style="max-height: 300px; cursor: pointer; object-fit: contain;">
-            <div class="d-flex flex-wrap justify-content-center gap-2 thumbnails" id="thumbs-left-{{ forloop.counter }}">
-              {% for img, img_full in pair.id1_imgs_zipped %}
-              <img src="{{ img_full|urlize }}" alt="Thumbnail" class="img-thumbnail thumb-image" style="width: 75px; height: 75px; object-fit: cover; cursor: pointer;" data-target="main-img-left-{{ forloop.parentloop.counter }}" />
-              {% endfor %}
-            </div>
+          <div class="col-md-6 text-center">
+            <h6 class="mb-3">Project 1 Sample</h6>
+            {% if pair.id1_imgs_zipped %}
+              <img src="{{ pair.id1_imgs_zipped }}" 
+                   alt="Sample Image" 
+                   class="img-fluid rounded shadow" 
+                   style="max-height: 300px; object-fit: contain;">
+            {% else %}
+              <p class="text-muted">No image available</p>
+            {% endif %}
           </div>
 
           <!-- Right identity -->
-          <div class="col-md-6">
-            <h6 class="text-center mb-3">Project 2 Sample</h6>
-            <img src="{{ pair.id2_imgs_zipped.0.1|urlize }}" alt="Sample Image" class="img-fluid rounded mx-auto d-block mb-3 main-image" id="main-img-right-{{ forloop.counter }}" style="max-height: 300px; cursor: pointer; object-fit: contain;">
-            <div class="d-flex flex-wrap justify-content-center gap-2 thumbnails" id="thumbs-right-{{ forloop.counter }}">
-              {% for img, img_full in pair.id2_imgs_zipped %}
-              <img src="{{ img_full|urlize }}" alt="Thumbnail" class="img-thumbnail thumb-image" style="width: 75px; height: 75px; object-fit: cover; cursor: pointer;" data-target="main-img-right-{{ forloop.parentloop.counter }}" />
-              {% endfor %}
-            </div>
+          <div class="col-md-6 text-center">
+            <h6 class="mb-3">Project 2 Sample</h6>
+            {% if pair.id2_imgs_zipped %}
+              <img src="{{ pair.id2_imgs_zipped }}" 
+                   alt="Sample Image" 
+                   class="img-fluid rounded shadow" 
+                   style="max-height: 300px; object-fit: contain;">
+            {% else %}
+              <p class="text-muted">No image available</p>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -42,28 +46,4 @@
     <p class="text-center text-muted">No matched identities found between these projects.</p>
   {% endif %}
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  // Thumbnail click updates main image
-  document.querySelectorAll('.thumb-image').forEach(function(thumb) {
-    thumb.addEventListener('click', function() {
-      const targetId = this.getAttribute('data-target');
-      const mainImg = document.getElementById(targetId);
-      if (mainImg) {
-        mainImg.src = this.src;
-      }
-    });
-  });
-});
-</script>
-
-<style>
-  .main-image {
-    border: 2px solid #dee2e6;
-  }
-  .thumb-image:hover {
-    border-color: #0d6efd;
-  }
-</style>
 {% endblock %}
