@@ -45,10 +45,14 @@ def get_address(needed_address):
             return base_address + "/processed_data/extension"
         case "project_process_extension_image":
             return base_address + "/processed_data/extension/image"
+        case "project_process_extension_video":
+            return base_address + "/processed_data/extension/video"
         case "project_process_network":
             return base_address + "/processed_data/network"
         case "project_process_apps":
             return base_address + "/processed_data/apps"
+        case "project_process_timeline":
+            return base_address + "/processed_data/timeline"
 
 def get_current_project_name():
     return global_project_name

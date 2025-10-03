@@ -9,6 +9,7 @@ from util import image_utils
 from .timeline_process import process_timeline
 from .modules import *
 import importlib
+from .process_media_location import append_locations_to_csv
 
 
 ext_list=["archive", "app", "audio", "book", "code", "exec", "font", "image", "sheet", "slide", "text", "video", "web", "db", "others"]
@@ -27,7 +28,7 @@ def start_process(address, out, whole, app_name):
     #face analysis
     img_address = get_address("project_process_extension_image")
     save_address = get_address("project_process_face")
-    process_images(img_address, save_address)
+    # process_images(img_address, save_address)
 
     # apps data analysis
     app_address = get_address("project_extract_app")
@@ -38,11 +39,19 @@ def start_process(address, out, whole, app_name):
         if (whole):
             process_app_data(app, app_address, app_save_address)
 
+
+
     # timeline analysis
     process_timeline(project_address)
     
+    # get image-video locations
+    video_address = get_address("project_process_extension_video")
+    media_location_file = get_address("project_process_timeline")
+    media_location_file = media_location_file + "/combined/timeline.csv"
 
+    append_locations_to_csv(img_address, video_address, media_location_file)
 
+###################################################################################
 
 
 def process_images(img_address, save_address):
@@ -104,6 +113,11 @@ def extension_org(address,out):
 
 def face_analyze(img_address, face_address):
     image_utils.start_face_process(img_address, face_address)
+
+def process_media_location(img_address, video_address, media_location_file):
+    extract_gps_and_metadata(img_address, video_address, media_location_file)
+
+
 
 
 

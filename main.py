@@ -15,7 +15,7 @@ def start_project(name, whole, app_name):
   print("start extraction")
 
   # extract data
-  evidence_database.extract_and_save(whole, app_name)
+  # evidence_database.extract_and_save(whole, app_name)
 
   print("start processing")
   # process data
